@@ -17,7 +17,13 @@ Build the DMG (or grab a built one), then:
 1. Open `md-view-0.1.0.dmg` and drag **md-view** into **Applications**.
 2. First launch of a locally-signed app may require right-click → **Open** once (Gatekeeper).
 
-The very first launch after installing may be slightly slower while macOS verifies the new binary; after that, double-clicking a markdown file shows the rendered window in ~0.3 s.
+The very first launch after installing may be slightly slower while macOS verifies the new binary; after that, double-clicking a markdown file shows the rendered window in ~0.2 s.
+
+**md-view stays running after you close its window** (macOS convention — `Cmd+Q` quits). While it is resident, opening a markdown file shows the window in **~25 ms** instead of a full cold launch. To make even the *first* open of a session warm, install the optional login prewarm — it starts md-view hidden when you log in:
+
+```sh
+scripts/prewarm.sh install    # scripts/prewarm.sh remove to undo
+```
 
 ## Make it the default for all markdown files
 

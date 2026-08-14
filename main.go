@@ -18,6 +18,17 @@ func main() {
 	tracef("main entry")
 	app := NewApp()
 
+	// --hidden: prewarm launch (login item) — boot fully but keep the window
+	// off screen until the first document open. Makes the next double-click a
+	// warm open (no process spawn, no WebKit init).
+	hidden := false
+	for _, arg := range os.Args[1:] {
+		if arg == "--hidden" {
+			hidden = true
+		}
+	}
+	app.hiddenUntilOpen = hidden
+
 	// Windows/Linux file associations arrive via argv; also a dev convenience
 	// on macOS (`./md-view path/to/file.md`).
 	if initial := initialFileFromArgs(os.Args[1:]); initial != "" {
@@ -28,6 +39,11 @@ func main() {
 		Title:  "md-view",
 		Width:  980,
 		Height: 800,
+		// macOS convention: closing the window hides the app instead of
+		// quitting (Cmd+Q quits). The resident instance makes every subsequent
+		// double-click a warm open — tens of ms instead of a full cold launch.
+		HideWindowOnClose: true,
+		StartHidden:       hidden,
 		AssetServer: &assetserver.Options{
 			Assets:     assets,
 			Middleware: app.assetMiddleware,

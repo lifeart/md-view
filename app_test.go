@@ -196,6 +196,39 @@ func TestThemeBackgroundMatchesCSS(t *testing.T) {
 	}
 }
 
+// TestHiddenUntilOpen: a --hidden prewarm launch keeps the window gate closed
+// until the first document open clears it (openPath shows the window on warm
+// delivery; showWindow/Ready skip their order-front while the gate is set).
+func TestHiddenUntilOpen(t *testing.T) {
+	app := newTestApp()
+	app.hiddenUntilOpen = true
+
+	// Ready with the gate set must not panic without a context and must keep
+	// the gate untouched (no document was opened).
+	app.Ready("")
+	app.mu.Lock()
+	still := app.hiddenUntilOpen
+	app.mu.Unlock()
+	if !still {
+		t.Errorf("Ready must not clear hiddenUntilOpen")
+	}
+
+	// Any document open clears the gate, even while buffering pre-Ready.
+	app2 := newTestApp()
+	app2.hiddenUntilOpen = true
+	app2.openPath(testdataAbs(t, "index.md"))
+	app2.mu.Lock()
+	cleared := !app2.hiddenUntilOpen
+	pending := len(app2.pending)
+	app2.mu.Unlock()
+	if !cleared {
+		t.Errorf("openPath must clear hiddenUntilOpen")
+	}
+	if pending != 1 {
+		t.Errorf("pending = %d, want 1", pending)
+	}
+}
+
 // TestAssetMiddleware exercises the /doc-asset/ route with scope checks.
 func TestAssetMiddleware(t *testing.T) {
 	app := newTestApp()

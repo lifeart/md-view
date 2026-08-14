@@ -38,6 +38,10 @@ type App struct {
 	currentDoc string // last document opened or rendered; re-inlined on reload
 	storeErr   error  // deferred settings-store init error, surfaced via GetSettings
 
+	// hiddenUntilOpen: launched with --hidden (login-item prewarm) — keep the
+	// window off screen until the first document open asks for it.
+	hiddenUntilOpen bool
+
 	// launch starts an external command (system-default open, reveal in file
 	// manager). Injectable so tests can assert what would be executed without
 	// spawning anything.
@@ -125,6 +129,14 @@ func (a *App) showWindow(ctx context.Context) {
 	if bg, ok := themeBackground(a.inlineSettings().Theme); ok && bg != defaultBackground {
 		runtime.WindowSetBackgroundColour(ctx, bg.R, bg.G, bg.B, bg.A)
 	}
+	a.mu.Lock()
+	hidden := a.hiddenUntilOpen
+	a.mu.Unlock()
+	if hidden {
+		// Prewarm launch: stay invisible until a document open asks for the
+		// window (openPath shows it on delivery).
+		return
+	}
 	runtime.WindowShow(ctx)
 	tracef("window shown")
 }
@@ -165,6 +177,7 @@ func (a *App) openPath(path string) {
 	}
 	a.mu.Lock()
 	a.currentDoc = abs
+	a.hiddenUntilOpen = false // any open means the window is wanted
 	ready, ctx := a.ready, a.ctx
 	if !ready || ctx == nil {
 		a.pending = append(a.pending, abs)
@@ -172,6 +185,10 @@ func (a *App) openPath(path string) {
 		return
 	}
 	a.mu.Unlock()
+	// Warm delivery into a running instance: the window may be hidden (closed
+	// with HideWindowOnClose, or a --hidden prewarm launch) — show it. On cold
+	// launches this branch is never reached before Ready.
+	runtime.WindowShow(ctx)
 	runtime.EventsEmit(ctx, EventDocOpen, abs)
 }
 
@@ -218,9 +235,10 @@ func (a *App) Ready(inlinedPath string) {
 	deliveries := readyDeliveries(inlinedPath, a.pending, a.currentDoc)
 	a.pending = nil
 	ctx := a.ctx
+	hidden := a.hiddenUntilOpen
 	a.mu.Unlock()
 	tracef("Ready(%q)", inlinedPath)
-	if ctx != nil {
+	if ctx != nil && !hidden {
 		// Safety net for the macOS document-open quirk described on
 		// showWindow: the startup order-front has always been enough in
 		// testing, but a swallowed one would otherwise leave the window off
