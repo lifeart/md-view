@@ -32,7 +32,7 @@ func main() {
 			Assets:     assets,
 			Middleware: app.assetMiddleware,
 		},
-		BackgroundColour: &options.RGBA{R: 255, G: 255, B: 255, A: 1},
+		BackgroundColour: &defaultBackground,
 		OnStartup:        app.startup,
 		Bind: []interface{}{
 			app,

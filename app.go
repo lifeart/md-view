@@ -84,6 +84,7 @@ func (a *App) startup(ctx context.Context) {
 	a.mu.Lock()
 	a.ctx = ctx
 	a.mu.Unlock()
+	a.showWindow(ctx)
 	// Native drag-and-drop: deliver dropped markdown files as document opens.
 	runtime.OnFileDrop(ctx, func(x, y int, paths []string) {
 		for _, p := range paths {
@@ -96,6 +97,56 @@ func (a *App) startup(ctx context.Context) {
 			runtime.EventsEmit(ctx, "app:notice", "Only markdown files can be opened here")
 		}
 	})
+}
+
+// showWindow asserts the window on screen as early as the app can, and gives
+// it the persisted theme's background colour on the way.
+//
+// macOS: when the app is launched by opening a document (the LaunchServices
+// odoc Apple Event a Finder double-click sends), the window server swallows
+// the makeKeyAndOrderFront AppKit issues during
+// applicationWillFinishLaunching. AppKit reports the window as visible but it
+// stays off screen for ~5 s (the LaunchServices check-in timeout). Any
+// order-front issued once the main loop is running unsticks it, and OnStartup
+// — the first callback Wails makes, before it hands the main thread to
+// NSApplication — is the earliest point one can be queued: it runs on the
+// first main-loop turn. Doing it here rather than from Ready() takes the
+// frontend's boot off the path to a visible window, which is what made a
+// document-open launch ~140 ms slower than a plain one.
+//
+// The window is therefore ordered front before the webview has painted, and
+// the window's background colour is what shows wherever the web view has not
+// drawn (before first paint, during a live resize), so track the theme instead
+// of the configured white.
+func (a *App) showWindow(ctx context.Context) {
+	// Only a non-default theme needs the override: re-colouring the window
+	// costs a redraw before the first frame, and the option below is already
+	// the light theme's white.
+	if bg, ok := themeBackground(a.inlineSettings().Theme); ok && bg != defaultBackground {
+		runtime.WindowSetBackgroundColour(ctx, bg.R, bg.G, bg.B, bg.A)
+	}
+	runtime.WindowShow(ctx)
+	tracef("window shown")
+}
+
+// defaultBackground is the window background Wails is configured with: the
+// light theme's page colour, so the common case needs no override at startup.
+var defaultBackground = options.RGBA{R: 0xff, G: 0xff, B: 0xff, A: 255}
+
+// themeBackground maps a persisted theme to the page background colour
+// theme.css paints. "system" is deliberately unmapped: the webview resolves it
+// from prefers-color-scheme, which Go cannot see, so the window keeps the
+// light default (matching theme.css's own fallback).
+func themeBackground(theme string) (options.RGBA, bool) {
+	switch theme {
+	case "dark":
+		return options.RGBA{R: 0x0d, G: 0x11, B: 0x17, A: 255}, true
+	case "sepia":
+		return options.RGBA{R: 0xf4, G: 0xec, B: 0xd8, A: 255}, true
+	case "light":
+		return options.RGBA{R: 0xff, G: 0xff, B: 0xff, A: 255}, true
+	}
+	return options.RGBA{}, false
 }
 
 // openPath is the single trusted entry point for opening a document: OS file
@@ -170,12 +221,10 @@ func (a *App) Ready(inlinedPath string) {
 	a.mu.Unlock()
 	tracef("Ready(%q)", inlinedPath)
 	if ctx != nil {
-		// macOS: when the app is launched by opening a document, the window
-		// server swallows the order-front issued during
-		// applicationWillFinishLaunching — AppKit reports the window visible,
-		// but it stays off screen for ~5 s (LaunchServices check-in timeout).
-		// Re-asserting the show once the frontend is up makes it appear
-		// immediately; it is a no-op when the window is already on screen.
+		// Safety net for the macOS document-open quirk described on
+		// showWindow: the startup order-front has always been enough in
+		// testing, but a swallowed one would otherwise leave the window off
+		// screen for ~5 s. WindowShow is idempotent.
 		runtime.WindowShow(ctx)
 	}
 	for _, p := range deliveries {

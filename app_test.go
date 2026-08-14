@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -144,6 +145,54 @@ func TestOpenExternalSchemeValidation(t *testing.T) {
 	if err := app.OpenExternal("https://wails.io"); err == nil ||
 		!strings.Contains(err.Error(), "not started") {
 		t.Errorf("OpenExternal(https) expected context error, got %v", err)
+	}
+}
+
+// TestThemeBackgroundMatchesCSS pins the Go-side window background colours to
+// the --bg values in theme.css. The window is ordered front before the webview
+// paints (see showWindow), so a drift here shows up as a coloured flash on
+// every launch — and nothing else would catch it.
+func TestThemeBackgroundMatchesCSS(t *testing.T) {
+	css, err := os.ReadFile(filepath.Join("frontend", "src", "theme.css"))
+	if err != nil {
+		t.Fatalf("read theme.css: %v", err)
+	}
+	// The first --bg after each theme's selector ( :root is the light theme ).
+	for _, c := range []struct{ theme, selector string }{
+		{"light", ":root {"},
+		{"dark", `[data-theme="dark"] {`},
+		{"sepia", `[data-theme="sepia"] {`},
+	} {
+		block := strings.Index(string(css), c.selector)
+		if block < 0 {
+			t.Fatalf("theme.css has no %q block", c.selector)
+		}
+		rest := string(css)[block:]
+		i := strings.Index(rest, "--bg: #")
+		if i < 0 || i+14 > len(rest) {
+			t.Fatalf("theme.css %q block has no --bg", c.selector)
+		}
+		want := strings.ToLower(rest[i+len("--bg: #") : i+len("--bg: #")+6])
+		bg, ok := themeBackground(c.theme)
+		if !ok {
+			t.Errorf("themeBackground(%q) not mapped", c.theme)
+			continue
+		}
+		got := fmt.Sprintf("%02x%02x%02x", bg.R, bg.G, bg.B)
+		if got != want {
+			t.Errorf("themeBackground(%q) = #%s, theme.css --bg = #%s", c.theme, got, want)
+		}
+		if bg.A != 255 {
+			t.Errorf("themeBackground(%q) alpha = %d, want opaque", c.theme, bg.A)
+		}
+	}
+	if _, ok := themeBackground("system"); ok {
+		t.Errorf(`themeBackground("system") must stay unmapped: only the webview can resolve it`)
+	}
+	// showWindow skips the override when the theme already matches the
+	// configured window colour, so those two must agree.
+	if light, _ := themeBackground("light"); light != defaultBackground {
+		t.Errorf("defaultBackground = %+v, light theme = %+v", defaultBackground, light)
 	}
 }
 
