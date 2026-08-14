@@ -29,6 +29,12 @@ func isShellRequest(r *http.Request) bool {
 // serveShell serves the shell response from next with the initial state
 // injected. Non-200 responses from next are replayed unchanged.
 func (a *App) serveShell(w http.ResponseWriter, r *http.Request, next http.Handler) {
+	// The injected shell varies with app state, so conditional revalidation
+	// against the static shell's ETag/mtime would replay a stale, un-injected
+	// copy via 304 (seen with the vite dev server). Force a full response and
+	// forbid caching it.
+	r.Header.Del("If-None-Match")
+	r.Header.Del("If-Modified-Since")
 	rec := &bufferedResponse{header: make(http.Header)}
 	next.ServeHTTP(rec, r)
 	if rec.statusOr200() != http.StatusOK {
@@ -44,6 +50,9 @@ func (a *App) serveShell(w http.ResponseWriter, r *http.Request, next http.Handl
 		h[k] = v
 	}
 	h.Set("Content-Length", strconv.Itoa(len(out)))
+	h.Set("Cache-Control", "no-store")
+	h.Del("ETag")
+	h.Del("Last-Modified")
 	w.WriteHeader(http.StatusOK)
 	_, _ = w.Write(out)
 }

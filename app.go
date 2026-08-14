@@ -300,6 +300,27 @@ var systemOpenBlockedExts = map[string]bool{
 	".py":          true,
 	".rb":          true,
 	".pl":          true,
+	// Windows-runnable (the +x check is inert there — Go reports no execute bits)
+	".exe": true,
+	".bat": true,
+	".cmd": true,
+	".msi": true,
+	".vbs": true,
+	".ps1": true,
+	".scr": true,
+	".hta": true,
+	".lnk": true,
+	".js":  true,
+	".wsf": true,
+	// macOS bundle directories (directories never trip the regular-file +x check)
+	".prefpane":    true,
+	".xpc":         true,
+	".plugin":      true,
+	".bundle":      true,
+	".appex":       true,
+	".qlgenerator": true,
+	".saver":       true,
+	".osax":        true,
 }
 
 // isBlockedForSystemOpen reports whether a file must not be handed to the OS

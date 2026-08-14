@@ -186,6 +186,11 @@ body {
   font-size: 13px;
 }
 
+/* display:flex above beats the UA's [hidden] rule — restate it */
+#error-banner[hidden] {
+  display: none;
+}
+
 #error-banner.notice {
   background: var(--menu-bg);
   color: var(--fg);

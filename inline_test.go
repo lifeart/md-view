@@ -151,6 +151,49 @@ func TestServeShellWithoutDoc(t *testing.T) {
 	}
 }
 
+// TestServeShellBypassesConditionalCache: a caching client revalidating the
+// static shell must not get a 304 — that would replay a stale, un-injected
+// copy. The middleware strips conditional headers and forbids caching.
+func TestServeShellBypassesConditionalCache(t *testing.T) {
+	app := newTestApp()
+	app.store = settings.NewStoreAt(filepath.Join(t.TempDir(), "settings.json"))
+
+	// next behaves like vite / http.ServeContent: matching If-None-Match → 304.
+	const etag = `"shell-v1"`
+	next := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Header.Get("If-None-Match") == etag {
+			w.WriteHeader(http.StatusNotModified)
+			return
+		}
+		w.Header().Set("ETag", etag)
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		shell, err := os.ReadFile("frontend/index.html")
+		if err != nil {
+			t.Errorf("read shell: %v", err)
+		}
+		_, _ = w.Write(shell)
+	})
+
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	req.Header.Set("If-None-Match", etag)
+	req.Header.Set("If-Modified-Since", "Mon, 01 Jan 2024 00:00:00 GMT")
+	rec := httptest.NewRecorder()
+	app.assetMiddleware(next).ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("conditional shell request status = %d, want 200", rec.Code)
+	}
+	if !strings.Contains(rec.Body.String(), "data-theme=") {
+		t.Errorf("revalidated shell response is missing injected settings")
+	}
+	if got := rec.Header().Get("Cache-Control"); got != "no-store" {
+		t.Errorf("Cache-Control = %q, want no-store", got)
+	}
+	if rec.Header().Get("ETag") != "" || rec.Header().Get("Last-Modified") != "" {
+		t.Errorf("injected shell must not carry cache validators")
+	}
+}
+
 // TestServeShellAfterReload: F5 — after the initial handshake consumed
 // pending, a reloaded webview still gets the current document inlined.
 func TestServeShellAfterReload(t *testing.T) {

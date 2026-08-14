@@ -289,11 +289,39 @@ func TestIsBlockedForSystemOpen(t *testing.T) {
 		{"do.command", 0o644, true},
 		{"x.applescript", 0o644, true},
 		{"pkg.jar", 0o644, true},
+		{"setup.exe", 0o644, true}, // Windows-runnable: extension-only (+x is inert there)
+		{"script.ps1", 0o644, true},
+		{"page.hta", 0o644, true},
 	} {
 		p, info := mk(c.name, c.mode)
 		if got := isBlockedForSystemOpen(p, info); got != c.blocked {
 			t.Errorf("isBlockedForSystemOpen(%s, %v) = %v, want %v", c.name, c.mode, got, c.blocked)
 		}
+	}
+
+	// macOS bundle directories never trip the regular-file +x check; the
+	// extension denylist must catch them.
+	bundle := filepath.Join(dir, "Evil.prefPane")
+	if err := os.Mkdir(bundle, 0o755); err != nil {
+		t.Fatalf("mkdir: %v", err)
+	}
+	info, err := os.Stat(bundle)
+	if err != nil {
+		t.Fatalf("stat: %v", err)
+	}
+	if !isBlockedForSystemOpen(bundle, info) {
+		t.Errorf("bundle directory %s must be blocked", bundle)
+	}
+	plain := filepath.Join(dir, "assets")
+	if err := os.Mkdir(plain, 0o755); err != nil {
+		t.Fatalf("mkdir: %v", err)
+	}
+	info, err = os.Stat(plain)
+	if err != nil {
+		t.Fatalf("stat: %v", err)
+	}
+	if isBlockedForSystemOpen(plain, info) {
+		t.Errorf("plain directory %s must not be blocked", plain)
 	}
 }
 
