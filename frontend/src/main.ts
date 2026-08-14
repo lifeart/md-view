@@ -190,9 +190,21 @@ function scrollToAnchor(anchor: string, smooth: boolean): void {
   target.scrollIntoView({ behavior: smooth ? 'smooth' : 'auto', block: 'start' });
 }
 
-async function renderInto(path: string): Promise<boolean> {
+// Monotonic navigation token: two in-flight renders (double-click on a link,
+// fast back/forward) can resolve out of order, so only the navigation holding
+// the latest token may commit DOM/history/title mutations.
+let navSeq = 0;
+
+async function renderInto(path: string, token: number): Promise<boolean> {
   try {
     const doc = await RenderDocument(path);
+    if (token !== navSeq) {
+      // A newer navigation started while this render was in flight. Dropping
+      // the stale result silently is intentional (not error swallowing): the
+      // render succeeded but lost the race, and committing it would clobber
+      // the newer document.
+      return false;
+    }
     content.innerHTML = doc.html;
     currentPath = doc.path;
     docTitle.textContent = doc.title;
@@ -201,14 +213,19 @@ async function renderInto(path: string): Promise<boolean> {
     enhanceCodeBlocks();
     return true;
   } catch (err) {
-    showError(`Failed to open ${path}: ${errMsg(err)}`);
+    if (token === navSeq) {
+      showError(`Failed to open ${path}: ${errMsg(err)}`);
+    }
+    // Stale failures are dropped: the error belongs to an abandoned
+    // navigation and a newer one has already taken over the UI.
     return false;
   }
 }
 
 async function navigateTo(path: string, anchor = ''): Promise<void> {
+  const token = ++navSeq;
   captureScroll();
-  const ok = await renderInto(path);
+  const ok = await renderInto(path, token);
   if (!ok) return;
   // drop any forward entries, push the new location
   history.splice(historyIndex + 1);
@@ -224,13 +241,23 @@ async function navigateTo(path: string, anchor = ''): Promise<void> {
 
 async function goToHistoryEntry(index: number): Promise<void> {
   if (index < 0 || index >= history.length) return;
+  const token = ++navSeq;
   captureScroll();
   const entry = history[index];
-  const ok = await renderInto(entry.path);
+  const ok = await renderInto(entry.path, token);
   if (!ok) return;
   historyIndex = index;
   updateNavButtons();
-  window.scrollTo(0, entry.scrollY);
+  // Restore where the user left this entry. A recorded scroll position wins;
+  // with none (scrollY 0) fall back to the entry's anchor, which keeps the
+  // right section in view even if the document's layout changed meanwhile.
+  const anchorTarget =
+    entry.scrollY === 0 && entry.anchor ? document.getElementById(entry.anchor) : null;
+  if (anchorTarget) {
+    anchorTarget.scrollIntoView({ behavior: 'auto', block: 'start' });
+  } else {
+    window.scrollTo(0, entry.scrollY);
+  }
 }
 
 function goBack(): void {
