@@ -64,7 +64,7 @@ Why this shape:
 3. First paint is the finished document. The TS layer hydrates afterward (event listeners only — no DOM rebuilding).
 4. Subsequent navigations call a bound Go method (`RenderDocument(path)`) and swap the content in place — no page reload, JS state (history stack) survives.
 
-Performance budget: cold launch → content **< 400 ms**, warm launch **< 150 ms**, in-app navigation to another document **< 50 ms**, 1 MB file parse+render **< 100 ms**.
+Performance budget: cold launch → content **< 400 ms**, warm launch **< 150 ms**, in-app navigation to another document **< 50 ms**, 1 MB file parse+render **< 400 ms** (typical prose ~150 ms measured). Syntax highlighting is capped: any single code fence larger than 50 KB renders as a plain escaped `<pre><code>` block (no chroma) — chroma tokenization costs seconds per megabyte, so the cap keeps pathological code-heavy documents bounded.
 
 Note: file associations only take effect for the **built/installed** app bundle, not under `wails dev` — during development, open files via `Cmd+O`/drag-and-drop or a CLI argument.
 

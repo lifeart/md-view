@@ -27,6 +27,13 @@ import (
 // query parameter, URL-encoded.
 const AssetRoutePrefix = "/doc-asset/"
 
+// maxHighlightFenceBytes caps syntax highlighting: any single code fence whose
+// content is larger than this renders as a plain escaped <pre><code> block
+// instead of going through chroma. Chroma tokenization costs seconds per
+// megabyte, which blows the performance budget on pathological documents
+// (see ARCHITECTURE.md, performance budget).
+const maxHighlightFenceBytes = 50 << 10 // 50 KB
+
 // Doc is a rendered markdown document delivered to the frontend.
 type Doc struct {
 	HTML  string `json:"html"`
@@ -105,6 +112,7 @@ func (r *Renderer) Render(path string, src []byte) (Doc, error) {
 		title = strings.TrimSuffix(filepath.Base(path), filepath.Ext(path))
 	}
 	rewriteImageSources(root, dir)
+	capOversizedFences(root)
 
 	var buf bytes.Buffer
 	if err := r.md.Renderer().Render(&buf, src, root); err != nil {
@@ -159,6 +167,33 @@ func rewriteImageSources(root ast.Node, dir string) {
 		dest := string(img.Destination)
 		if rewritten, ok := RewriteAssetURL(dest, dir); ok {
 			img.Destination = []byte(rewritten)
+		}
+		return ast.WalkContinue, nil
+	})
+}
+
+// capOversizedFences strips the language info from fenced code blocks larger
+// than maxHighlightFenceBytes. Without a language (and with language guessing
+// off, the default), goldmark-highlighting falls back to a plain escaped
+// <pre><code> block — no chroma tokenization, so render time stays bounded.
+func capOversizedFences(root ast.Node) {
+	_ = ast.Walk(root, func(n ast.Node, entering bool) (ast.WalkStatus, error) {
+		if !entering {
+			return ast.WalkContinue, nil
+		}
+		fence, ok := n.(*ast.FencedCodeBlock)
+		if !ok || fence.Info == nil {
+			return ast.WalkContinue, nil
+		}
+		size := 0
+		lines := fence.Lines()
+		for i := 0; i < lines.Len(); i++ {
+			seg := lines.At(i)
+			size += seg.Len()
+			if size > maxHighlightFenceBytes {
+				fence.Info = nil
+				break
+			}
 		}
 		return ast.WalkContinue, nil
 	})

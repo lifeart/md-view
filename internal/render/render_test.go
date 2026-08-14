@@ -1,10 +1,12 @@
 package render
 
 import (
+	"bytes"
 	"net/url"
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 )
 
 func testdataPath(t *testing.T, rel string) string {
@@ -130,6 +132,71 @@ func TestSanitization(t *testing.T) {
 	// The heading id must still be present (policy allows ids on headings).
 	if !strings.Contains(html, `id="evil-document"`) {
 		t.Errorf("heading id stripped by sanitizer")
+	}
+}
+
+// TestLargeCodeFenceSkipsHighlighting: F1 regression — a single fence above
+// the 50 KB cap must render as a plain escaped code block (no chroma spans)
+// and must stay fast; a normal-sized fence in the same document must still be
+// highlighted.
+func TestLargeCodeFenceSkipsHighlighting(t *testing.T) {
+	var src bytes.Buffer
+	src.WriteString("# Big\n\n```go\nfunc small() { return }\n```\n\n```go\n")
+	for src.Len() < maxHighlightFenceBytes+4096 {
+		src.WriteString("if x := compute(); x > 0 { fmt.Println(\"<script>alert(1)</script>\", x) }\n")
+	}
+	src.WriteString("```\n")
+
+	r := New()
+	start := time.Now()
+	doc, err := r.Render("/tmp/x/big.md", src.Bytes())
+	elapsed := time.Since(start)
+	if err != nil {
+		t.Fatalf("Render: %v", err)
+	}
+
+	// The small fence keeps chroma highlighting.
+	if !strings.Contains(doc.HTML, `<pre class="chroma"`) {
+		t.Errorf("normal fence lost chroma highlighting")
+	}
+	// The oversized fence renders as a plain <pre><code> block: exactly one
+	// chroma block in the document, and the raw HTML inside the big fence is
+	// escaped, not tokenized into spans.
+	if got := strings.Count(doc.HTML, `<pre class="chroma"`); got != 1 {
+		t.Errorf("chroma block count = %d, want 1 (oversized fence must not be highlighted)", got)
+	}
+	if !strings.Contains(doc.HTML, "<pre><code>") {
+		t.Errorf("oversized fence missing plain <pre><code> fallback")
+	}
+	if !strings.Contains(doc.HTML, "&lt;script&gt;") {
+		t.Errorf("oversized fence content not escaped")
+	}
+	if strings.Contains(doc.HTML, "<script") {
+		t.Errorf("unescaped script tag leaked through")
+	}
+	// Chroma on a fence this size costs hundreds of ms; the plain path is a
+	// few ms. A generous bound still catches a reintroduced chroma path.
+	if elapsed > time.Second {
+		t.Errorf("oversized fence render took %v, want well under 1s", elapsed)
+	}
+}
+
+// TestFenceUnderCapStillHighlighted: content just below the cap keeps
+// highlighting (the cap only bites above 50 KB).
+func TestFenceUnderCapStillHighlighted(t *testing.T) {
+	var src bytes.Buffer
+	src.WriteString("```go\n")
+	for src.Len() < maxHighlightFenceBytes-4096 {
+		src.WriteString("func f() int { return 42 } // filler line to grow the fence\n")
+	}
+	src.WriteString("```\n")
+	r := New()
+	doc, err := r.Render("/tmp/x/under.md", src.Bytes())
+	if err != nil {
+		t.Fatalf("Render: %v", err)
+	}
+	if !strings.Contains(doc.HTML, `<pre class="chroma"`) {
+		t.Errorf("fence under the cap must still be highlighted")
 	}
 }
 
