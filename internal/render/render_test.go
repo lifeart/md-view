@@ -102,6 +102,56 @@ func TestRenderImageRewrite(t *testing.T) {
 	}
 }
 
+// TestRawHTMLImageRewrite: F9 — <img> tags written as raw HTML in markdown
+// (not markdown image syntax) must get the same /doc-asset/ src rewriting,
+// while absolute http(s) sources stay untouched.
+func TestRawHTMLImageRewrite(t *testing.T) {
+	r := New()
+	src := []byte("# Doc\n\n" +
+		`<img src="img/local.png" alt="local">` + "\n\n" +
+		`<p>inline <img src="../up.png" alt="up"> here</p>` + "\n\n" +
+		`<img src="https://example.com/remote.png" alt="remote">` + "\n")
+	doc, err := r.Render("/docs/project/a.md", src)
+	if err != nil {
+		t.Fatalf("Render: %v", err)
+	}
+	wantLocal := AssetRoutePrefix + "?p=" + url.QueryEscape("/docs/project/img/local.png")
+	if !strings.Contains(doc.HTML, wantLocal) {
+		t.Errorf("raw-HTML relative img not rewritten: want %q in\n%s", wantLocal, doc.HTML)
+	}
+	wantUp := AssetRoutePrefix + "?p=" + url.QueryEscape("/docs/up.png")
+	if !strings.Contains(doc.HTML, wantUp) {
+		t.Errorf("raw-HTML parent-relative img not rewritten: want %q in\n%s", wantUp, doc.HTML)
+	}
+	if !strings.Contains(doc.HTML, `src="https://example.com/remote.png"`) {
+		t.Errorf("raw-HTML remote img src must be preserved, got:\n%s", doc.HTML)
+	}
+	// Surrounding markup survives the token walk byte-for-byte.
+	if !strings.Contains(doc.HTML, "inline ") || !strings.Contains(doc.HTML, " here") {
+		t.Errorf("surrounding content damaged by rewrite:\n%s", doc.HTML)
+	}
+}
+
+// TestRawHTMLImageRewriteKeepsSanitization: the rewrite pass runs after
+// bluemonday and must not reintroduce anything the sanitizer stripped.
+func TestRawHTMLImageRewriteKeepsSanitization(t *testing.T) {
+	r := New()
+	src := []byte(`<img src="x.png" onerror="alert(1)"><script>alert(2)</script>`)
+	doc, err := r.Render("/docs/project/a.md", src)
+	if err != nil {
+		t.Fatalf("Render: %v", err)
+	}
+	for _, banned := range []string{"onerror", "<script", "alert("} {
+		if strings.Contains(doc.HTML, banned) {
+			t.Errorf("rewrite pass reintroduced %q:\n%s", banned, doc.HTML)
+		}
+	}
+	want := AssetRoutePrefix + "?p=" + url.QueryEscape("/docs/project/x.png")
+	if !strings.Contains(doc.HTML, want) {
+		t.Errorf("sanitized raw img still not rewritten: want %q in\n%s", want, doc.HTML)
+	}
+}
+
 func TestRenderRemoteImageUntouched(t *testing.T) {
 	r := New()
 	doc, err := r.Render("/tmp/x/a.md", []byte(`![remote](https://example.com/a.png)`))

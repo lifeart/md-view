@@ -5,6 +5,7 @@ package render
 import (
 	"bytes"
 	"fmt"
+	"io"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -20,6 +21,7 @@ import (
 	"github.com/yuin/goldmark/parser"
 	"github.com/yuin/goldmark/renderer/html"
 	"github.com/yuin/goldmark/text"
+	xhtml "golang.org/x/net/html"
 )
 
 // AssetRoutePrefix is the in-app URL prefix that serves scope-checked local files
@@ -120,7 +122,60 @@ func (r *Renderer) Render(path string, src []byte) (Doc, error) {
 	}
 
 	sanitized := r.policy.SanitizeReader(&buf).String()
+	// Markdown-syntax images were rewritten on the AST above; raw-HTML <img>
+	// tags pass through goldmark untouched, so rewrite them here, after
+	// sanitization (bluemonday has already policed schemes and attributes).
+	sanitized = rewriteRawImageSources(sanitized, dir)
 	return Doc{HTML: sanitized, Title: title, Path: path, Dir: dir}, nil
+}
+
+// rewriteRawImageSources rewrites relative <img src> values in already-
+// sanitized HTML to the /doc-asset/ route, resolved against the document
+// directory — the same treatment markdown-syntax images get on the AST.
+// It is a token walk (never a regex over HTML): every token except a
+// rewritten <img> tag is copied through byte-for-byte, and rewritten tags are
+// re-serialized with escaped attribute values. Absolute http(s)/data URIs and
+// already-rewritten /doc-asset/ routes are left untouched (RewriteAssetURL
+// declines them).
+func rewriteRawImageSources(sanitized, dir string) string {
+	if !strings.Contains(sanitized, "<img") {
+		return sanitized
+	}
+	z := xhtml.NewTokenizer(strings.NewReader(sanitized))
+	var b strings.Builder
+	b.Grow(len(sanitized))
+	for {
+		tt := z.Next()
+		if tt == xhtml.ErrorToken {
+			if z.Err() == io.EOF {
+				return b.String()
+			}
+			// Tokenizer failed mid-stream (should not happen on bluemonday
+			// output). Serve the sanitized HTML unmodified rather than a
+			// truncated document — images then simply keep their original src.
+			return sanitized
+		}
+		raw := string(z.Raw())
+		if tt == xhtml.StartTagToken || tt == xhtml.SelfClosingTagToken {
+			tok := z.Token()
+			if tok.Data == "img" {
+				changed := false
+				for i, attr := range tok.Attr {
+					if attr.Namespace == "" && attr.Key == "src" {
+						if rewritten, ok := RewriteAssetURL(attr.Val, dir); ok {
+							tok.Attr[i].Val = rewritten
+							changed = true
+						}
+					}
+				}
+				if changed {
+					b.WriteString(tok.String())
+					continue
+				}
+			}
+		}
+		b.WriteString(raw)
+	}
 }
 
 // extractTitle returns the text of the first level-1 heading, or "".
