@@ -36,7 +36,7 @@ func main() {
 	}
 
 	err := wails.Run(&options.App{
-		Title:  "MD View",
+		Title:  "MDv",
 		Width:  980,
 		Height: 800,
 		// macOS convention: closing the window hides the app instead of
@@ -69,7 +69,7 @@ func main() {
 				app.openPath(filePath)
 			},
 			About: &mac.AboutInfo{
-				Title:   "MD View",
+				Title:   "MDv",
 				Message: "A fast markdown viewer",
 			},
 		},

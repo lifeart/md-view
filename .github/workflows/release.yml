@@ -111,7 +111,7 @@ jobs:
       - name: Build the DMG
         run: |
           STAGE="$(mktemp -d)"
-          cp -R build/bin/md-view.app "$STAGE/MD View.app"
+          cp -R build/bin/md-view.app "$STAGE/MDv.app"
           ln -s /Applications "$STAGE/Applications"
           hdiutil create \
             -volname "md-view" \

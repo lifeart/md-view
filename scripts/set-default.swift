@@ -3,7 +3,7 @@
 import AppKit
 import UniformTypeIdentifiers
 
-let appPath = CommandLine.arguments.count > 1 ? CommandLine.arguments[1] : "/Applications/MD View.app"
+let appPath = CommandLine.arguments.count > 1 ? CommandLine.arguments[1] : "/Applications/MDv.app"
 let appURL = URL(fileURLWithPath: appPath)
 guard FileManager.default.fileExists(atPath: appPath) else {
     print("error: \(appPath) not found — install the app first")

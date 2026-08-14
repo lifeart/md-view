@@ -136,8 +136,8 @@ func injectInitialState(shell []byte, doc *render.Doc, s settings.Settings) ([]b
 		doc.HTML +
 		out[end:]
 
-	out = strings.Replace(out, `<title>MD View</title>`,
-		`<title>`+html.EscapeString(doc.Title)+` — MD View</title>`, 1)
+	out = strings.Replace(out, `<title>MDv</title>`,
+		`<title>`+html.EscapeString(doc.Title)+` — MDv</title>`, 1)
 	out = strings.Replace(out, `<div id="doc-title" title=""></div>`,
 		`<div id="doc-title" title="`+html.EscapeString(doc.Path)+`">`+html.EscapeString(doc.Title)+`</div>`, 1)
 	return []byte(out), true

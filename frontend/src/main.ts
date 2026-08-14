@@ -233,7 +233,7 @@ async function renderInto(path: string, token: number): Promise<boolean> {
       currentPath = doc.path;
       docTitle.textContent = doc.title;
       docTitle.title = doc.path;
-      WindowSetTitle(`${doc.title} — MD View`);
+      WindowSetTitle(`${doc.title} — MDv`);
       enhanceCodeBlocks();
     });
     return true;
@@ -567,7 +567,7 @@ async function init(): Promise<void> {
     const inlinedTitle = content.dataset.docTitle ?? '';
     docTitle.textContent = inlinedTitle;
     docTitle.title = inlinedPath;
-    WindowSetTitle(`${inlinedTitle} — MD View`);
+    WindowSetTitle(`${inlinedTitle} — MDv`);
     history.push({ path: inlinedPath, scrollY: 0, anchor: '' });
     historyIndex = 0;
     updateNavButtons();
