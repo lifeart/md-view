@@ -1,0 +1,2 @@
+Plain text notes — not markdown. Clicking a link to this file should open it
+with the system default application.
