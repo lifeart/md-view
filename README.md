@@ -57,7 +57,10 @@ Note: file associations only work for the built, installed bundle — under `wai
 
 ```sh
 wails build                # production bundle at build/bin/md-view.app
+scripts/sign.sh            # optional: re-sign with your Apple Development cert
 ```
+
+`wails build` ad-hoc-signs the bundle, which produces a different identity every build — macOS then treats each build as a new app and resets its TCC permissions. `scripts/sign.sh` re-signs with your Apple Development certificate for a stable identity. Distribution to other machines additionally needs a "Developer ID Application" certificate and notarization (`xcrun notarytool`).
 
 DMG (compressed, with an Applications shortcut):
 
