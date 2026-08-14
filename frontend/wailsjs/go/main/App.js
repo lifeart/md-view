@@ -18,6 +18,10 @@ export function OpenWithSystemDefault(arg1) {
   return window['go']['main']['App']['OpenWithSystemDefault'](arg1);
 }
 
+export function PresentWindow() {
+  return window['go']['main']['App']['PresentWindow']();
+}
+
 export function Ready(arg1) {
   return window['go']['main']['App']['Ready'](arg1);
 }
@@ -28,6 +32,10 @@ export function RenderDocument(arg1) {
 
 export function ResolveLink(arg1, arg2) {
   return window['go']['main']['App']['ResolveLink'](arg1, arg2);
+}
+
+export function RevealWindow() {
+  return window['go']['main']['App']['RevealWindow']();
 }
 
 export function SetSettings(arg1) {

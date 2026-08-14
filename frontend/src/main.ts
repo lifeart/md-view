@@ -6,12 +6,14 @@ import {
   OpenExternal,
   OpenFileDialog,
   OpenWithSystemDefault,
+  PresentWindow,
   Ready,
+  RevealWindow,
   RenderDocument,
   ResolveLink,
   SetSettings,
 } from '../wailsjs/go/main/App';
-import { ClipboardSetText, EventsOn, WindowSetTitle, WindowShow } from '../wailsjs/runtime/runtime';
+import { ClipboardSetText, EventsOn, WindowSetTitle } from '../wailsjs/runtime/runtime';
 import { settings } from '../wailsjs/go/models';
 
 // ---------- helpers ----------
@@ -476,13 +478,27 @@ async function init(): Promise<void> {
   EventsOn('doc:open', (path: string) => {
     void (async () => {
       // Warm opens arrive with the window hidden (or showing the previous
-      // document). Commit the new content FIRST, force a layout, and only
-      // then show the window — showing before the swap flashes stale
-      // content. On failure the error banner is committed instead, and the
-      // window must still appear to make it visible.
+      // document), and a hidden window's compositor still holds the OLD
+      // document's frame — showing directly flashes stale content even after
+      // the DOM swap. Two-phase present: commit the new content, order the
+      // window front invisibly (PresentWindow — unthrottles the compositor so
+      // the commit lands), wait for a painted frame, then reveal. The timeout
+      // fallback guarantees the reveal even if rAF stays throttled.
       await navigateTo(path);
       void content.offsetHeight;
-      WindowShow();
+      await PresentWindow();
+      await new Promise<void>((resolve) => {
+        let settled = false;
+        const done = (): void => {
+          if (!settled) {
+            settled = true;
+            resolve();
+          }
+        };
+        requestAnimationFrame(() => requestAnimationFrame(done));
+        window.setTimeout(done, 150);
+      });
+      await RevealWindow();
     })();
   });
   EventsOn('app:error', (msg: string) => {
