@@ -3,7 +3,11 @@
 
 # Node
 node_modules/
-frontend/dist/
 
-# Wails
+# Vite build output (keep gitkeep so `go:embed frontend/dist` works on a fresh clone)
+frontend/dist/*
+!frontend/dist/gitkeep
+
+# Wails build output
 build/bin/
+frontend/package.json.md5

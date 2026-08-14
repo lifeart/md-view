@@ -1,0 +1,48 @@
+{
+  "$schema": "https://wails.io/schemas/config.v2.json",
+  "name": "md-view",
+  "outputfilename": "md-view",
+  "frontend:install": "npm install",
+  "frontend:build": "npm run build",
+  "frontend:dev:watcher": "npm run dev",
+  "frontend:dev:serverUrl": "auto",
+  "author": {
+    "name": "Alex Kanunnikov",
+    "email": "lifeart92@gmail.com"
+  },
+  "info": {
+    "productName": "md-view",
+    "productVersion": "0.1.0",
+    "comments": "A fast markdown viewer",
+    "fileAssociations": [
+      {
+        "ext": "md",
+        "name": "Markdown Document",
+        "description": "Markdown Document",
+        "iconName": "appicon",
+        "role": "Viewer"
+      },
+      {
+        "ext": "markdown",
+        "name": "Markdown Document",
+        "description": "Markdown Document",
+        "iconName": "appicon",
+        "role": "Viewer"
+      },
+      {
+        "ext": "mdown",
+        "name": "Markdown Document",
+        "description": "Markdown Document",
+        "iconName": "appicon",
+        "role": "Viewer"
+      },
+      {
+        "ext": "mkd",
+        "name": "Markdown Document",
+        "description": "Markdown Document",
+        "iconName": "appicon",
+        "role": "Viewer"
+      }
+    ]
+  }
+}
