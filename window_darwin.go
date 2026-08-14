@@ -37,6 +37,9 @@ static void mdview_present_window(void) {
 		if (w == nil) {
 			return;
 		}
+		if (w.miniaturized) {
+			[w deminiaturize:nil];
+		}
 		if (!(w.isVisible && (w.occlusionState & NSWindowOcclusionStateVisible))) {
 			w.alphaValue = 0.01;
 			dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(50 * NSEC_PER_MSEC)),
@@ -47,6 +50,18 @@ static void mdview_present_window(void) {
 		[w makeKeyAndOrderFront:nil];
 		[NSApp activateIgnoringOtherApps:YES];
 	});
+}
+
+// Whether the window is genuinely off screen (hidden app, closed-to-hidden,
+// miniaturized) as opposed to merely occluded by another window. Synchronous
+// main-queue read — must never be called from the main thread.
+static int mdview_window_hidden(void) {
+	__block int hidden = 0;
+	dispatch_sync(dispatch_get_main_queue(), ^{
+		NSWindow *w = [[NSApp windows] firstObject];
+		hidden = (w == nil || !w.isVisible || [NSApp isHidden]) ? 1 : 0;
+	});
+	return hidden;
 }
 */
 import "C"
@@ -65,4 +80,11 @@ func disableWindowAppearAnimation() {
 // C comment above). ctx is unused on macOS — the native side owns the window.
 func presentWindow(_ context.Context) {
 	C.mdview_present_window()
+}
+
+// windowHidden reports whether the window is genuinely off screen. Runs a
+// synchronous main-queue hop — only call from non-main goroutines (Wails
+// bound methods qualify).
+func windowHidden() bool {
+	return C.mdview_window_hidden() != 0
 }

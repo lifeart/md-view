@@ -6,6 +6,10 @@ export function GetSettings() {
   return window['go']['main']['App']['GetSettings']();
 }
 
+export function IsWindowHidden() {
+  return window['go']['main']['App']['IsWindowHidden']();
+}
+
 export function OpenExternal(arg1) {
   return window['go']['main']['App']['OpenExternal'](arg1);
 }

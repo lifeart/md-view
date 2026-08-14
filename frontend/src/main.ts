@@ -3,6 +3,7 @@ import './chroma.css';
 
 import {
   GetSettings,
+  IsWindowHidden,
   OpenExternal,
   OpenFileDialog,
   OpenWithSystemDefault,
@@ -195,6 +196,29 @@ function scrollToAnchor(anchor: string, smooth: boolean): void {
 // fast back/forward) can resolve out of order, so only the navigation holding
 // the latest token may commit DOM/history/title mutations.
 let navSeq = 0;
+
+// Content was cleared while the window was hidden (see the visibilitychange
+// handler) and must be restored on the next show.
+let contentCleared = false;
+
+let fadeTimer: number | undefined;
+let fadeCleanup: number | undefined;
+
+// scheduleContentFade holds the content at opacity 0 and starts a 50 ms
+// fade-in after delayMs. The delay lets a hidden window's native reveal
+// happen first; the timers are unconditional so the content can never be
+// left transparent.
+function scheduleContentFade(delayMs: number): void {
+  if (fadeTimer !== undefined) window.clearTimeout(fadeTimer);
+  if (fadeCleanup !== undefined) window.clearTimeout(fadeCleanup);
+  content.classList.remove('fade-in');
+  content.classList.add('pre-fade');
+  fadeTimer = window.setTimeout(() => {
+    content.classList.remove('pre-fade');
+    content.classList.add('fade-in');
+    fadeCleanup = window.setTimeout(() => content.classList.remove('fade-in'), 150);
+  }, delayMs);
+}
 
 async function renderInto(path: string, token: number): Promise<boolean> {
   try {
@@ -478,10 +502,57 @@ async function init(): Promise<void> {
     void (async () => {
       // Commit the new document (or the error banner) first, then present:
       // PresentWindow gates the show natively so a hidden window's suspended
-      // compositor can never flash the previously displayed content.
+      // compositor can never flash the previously displayed content. The text
+      // fades in on show — the fade is delayed past the native reveal (50 ms)
+      // when the window is hidden, because a CSS animation started while the
+      // compositor is suspended would finish invisibly.
+      const wasHidden = document.visibilityState !== 'visible';
       await navigateTo(path);
+      contentCleared = false;
+      scheduleContentFade(wasHidden ? 70 : 0);
       void PresentWindow();
     })();
+  });
+
+  // Clear the document while the window is genuinely off screen (closed to
+  // hidden, Cmd+H, minimized): the suspended compositor then holds only the
+  // empty shell, so nothing stale can ever be presented, and a large DOM is
+  // released. Mere occlusion by another window also reports 'hidden' — the
+  // native IsWindowHidden check keeps the content in that case.
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'hidden') {
+      void (async () => {
+        const seqAtHide = navSeq;
+        let hidden = false;
+        try {
+          hidden = await IsWindowHidden();
+        } catch (err) {
+          showError(`Cannot check window state: ${errMsg(err)}`);
+          return;
+        }
+        // A doc:open may have rendered new content while we asked — never
+        // wipe it (it is about to be presented).
+        if (hidden && navSeq === seqAtHide && currentPath) {
+          captureScroll();
+          content.innerHTML = '';
+          contentCleared = true;
+        }
+      })();
+    } else if (contentCleared && currentPath) {
+      // Shown again without a new document (Dock unhide, deminiaturize):
+      // restore the current one with the same fade.
+      contentCleared = false;
+      void (async () => {
+        const token = ++navSeq;
+        const ok = await renderInto(currentPath, token);
+        if (!ok) return;
+        scheduleContentFade(0);
+        const entry = history[historyIndex];
+        if (entry && entry.path === currentPath) {
+          window.scrollTo(0, entry.scrollY);
+        }
+      })();
+    }
   });
   EventsOn('app:error', (msg: string) => {
     showError(msg);

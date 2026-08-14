@@ -6,6 +6,8 @@ import {links} from '../models';
 
 export function GetSettings():Promise<settings.Settings>;
 
+export function IsWindowHidden():Promise<boolean>;
+
 export function OpenExternal(arg1:string):Promise<void>;
 
 export function OpenFileDialog():Promise<string>;

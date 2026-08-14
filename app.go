@@ -273,6 +273,13 @@ func (a *App) PresentWindow() {
 	presentWindow(ctx)
 }
 
+// IsWindowHidden reports whether the window is genuinely off screen (app
+// hidden, window closed-to-hidden or miniaturized) as opposed to merely
+// occluded. The frontend uses it to clear the document on real hides only.
+func (a *App) IsWindowHidden() bool {
+	return windowHidden()
+}
+
 // RenderDocument renders a markdown file. The path must already be inside the
 // allowed scope (established by OpenPath or ResolveLink) — this is the only
 // place document bytes are read for display.

@@ -497,3 +497,20 @@ article .chroma {
 .codeblock .copy-btn:hover {
   color: var(--fg);
 }
+
+/* ---------- content presentation fade ---------- */
+
+/* Held transparent between commit and show (see scheduleContentFade). */
+#content.pre-fade {
+  opacity: 0;
+}
+
+#content.fade-in {
+  animation: content-fade-in 50ms ease-out;
+}
+
+@keyframes content-fade-in {
+  from {
+    opacity: 0;
+  }
+}

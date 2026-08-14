@@ -19,3 +19,7 @@ func presentWindow(ctx context.Context) {
 		runtime.WindowShow(ctx)
 	}
 }
+
+// windowHidden: off macOS the clear-on-hide behavior is disabled (page
+// visibility semantics differ per platform); report "not hidden".
+func windowHidden() bool { return false }
