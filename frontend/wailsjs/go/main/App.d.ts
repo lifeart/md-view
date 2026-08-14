@@ -20,6 +20,4 @@ export function RenderDocument(arg1:string):Promise<render.Doc>;
 
 export function ResolveLink(arg1:string,arg2:string):Promise<links.Resolution>;
 
-export function RevealWindow():Promise<void>;
-
 export function SetSettings(arg1:settings.Settings):Promise<void>;

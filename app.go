@@ -262,22 +262,15 @@ func (a *App) Ready(inlinedPath string) {
 	}
 }
 
-// PresentWindow begins the two-phase warm-open presentation: the window is
-// ordered front invisibly so the webview's pending content commit can land
-// (see window_darwin.go). The frontend calls it after committing the new
-// document's DOM.
+// PresentWindow shows the window after the frontend has committed a warm
+// open's new document — gated natively so the suspended compositor's stale
+// frame can never be presented (see window_darwin.go).
 func (a *App) PresentWindow() {
 	a.mu.Lock()
 	ctx := a.ctx
 	a.windowShown = true
 	a.mu.Unlock()
-	presentWindowBegin(ctx)
-}
-
-// RevealWindow finishes the presentation once the frontend has observed a
-// painted frame of the new content.
-func (a *App) RevealWindow() {
-	presentWindowFinish()
+	presentWindow(ctx)
 }
 
 // RenderDocument renders a markdown file. The path must already be inside the
