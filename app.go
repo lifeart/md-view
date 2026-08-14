@@ -41,6 +41,10 @@ type App struct {
 	// hiddenUntilOpen: launched with --hidden (login-item prewarm) — keep the
 	// window off screen until the first document open asks for it.
 	hiddenUntilOpen bool
+	// windowShown: the startup order-front happened, so Ready's odoc-swallow
+	// safety net can skip its duplicate show (a second order-front during the
+	// launch presentation reads as a flash).
+	windowShown bool
 
 	// launch starts an external command (system-default open, reveal in file
 	// manager). Injectable so tests can assert what would be executed without
@@ -88,6 +92,7 @@ func (a *App) startup(ctx context.Context) {
 	a.mu.Lock()
 	a.ctx = ctx
 	a.mu.Unlock()
+	disableWindowAppearAnimation()
 	a.showWindow(ctx)
 	// Native drag-and-drop: deliver dropped markdown files as document opens.
 	runtime.OnFileDrop(ctx, func(x, y int, paths []string) {
@@ -138,6 +143,9 @@ func (a *App) showWindow(ctx context.Context) {
 		return
 	}
 	runtime.WindowShow(ctx)
+	a.mu.Lock()
+	a.windowShown = true
+	a.mu.Unlock()
 	tracef("window shown")
 }
 
@@ -184,6 +192,7 @@ func (a *App) openPath(path string) {
 		a.mu.Unlock()
 		return
 	}
+	a.windowShown = true
 	a.mu.Unlock()
 	// Warm delivery into a running instance: the window may be hidden (closed
 	// with HideWindowOnClose, or a --hidden prewarm launch) — show it. On cold
@@ -236,13 +245,16 @@ func (a *App) Ready(inlinedPath string) {
 	a.pending = nil
 	ctx := a.ctx
 	hidden := a.hiddenUntilOpen
+	shown := a.windowShown
+	a.windowShown = true
 	a.mu.Unlock()
 	tracef("Ready(%q)", inlinedPath)
-	if ctx != nil && !hidden {
+	if ctx != nil && !hidden && !shown {
 		// Safety net for the macOS document-open quirk described on
-		// showWindow: the startup order-front has always been enough in
-		// testing, but a swallowed one would otherwise leave the window off
-		// screen for ~5 s. WindowShow is idempotent.
+		// showWindow: only if the startup order-front did not happen — a
+		// swallowed one would otherwise leave the window off screen for ~5 s,
+		// but a duplicate show during the launch presentation reads as a
+		// flash.
 		runtime.WindowShow(ctx)
 	}
 	for _, p := range deliveries {
