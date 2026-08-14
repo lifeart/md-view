@@ -19,28 +19,28 @@
         "ext": "md",
         "name": "Markdown Document",
         "description": "Markdown Document",
-        "iconName": "appicon",
+        "iconName": "fileicon",
         "role": "Viewer"
       },
       {
         "ext": "markdown",
         "name": "Markdown Document",
         "description": "Markdown Document",
-        "iconName": "appicon",
+        "iconName": "fileicon",
         "role": "Viewer"
       },
       {
         "ext": "mdown",
         "name": "Markdown Document",
         "description": "Markdown Document",
-        "iconName": "appicon",
+        "iconName": "fileicon",
         "role": "Viewer"
       },
       {
         "ext": "mkd",
         "name": "Markdown Document",
         "description": "Markdown Document",
-        "iconName": "appicon",
+        "iconName": "fileicon",
         "role": "Viewer"
       }
     ]
