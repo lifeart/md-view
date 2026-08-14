@@ -35,6 +35,7 @@ func (a *App) serveShell(w http.ResponseWriter, r *http.Request, next http.Handl
 	// forbid caching it.
 	r.Header.Del("If-None-Match")
 	r.Header.Del("If-Modified-Since")
+	tracef("shell requested")
 	rec := &bufferedResponse{header: make(http.Header)}
 	next.ServeHTTP(rec, r)
 	if rec.statusOr200() != http.StatusOK {
@@ -55,6 +56,7 @@ func (a *App) serveShell(w http.ResponseWriter, r *http.Request, next http.Handl
 	h.Del("Last-Modified")
 	w.WriteHeader(http.StatusOK)
 	_, _ = w.Write(out)
+	tracef("shell served (%d bytes)", len(out))
 }
 
 // renderInlineDoc renders the document to inline into the shell: the first

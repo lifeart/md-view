@@ -80,6 +80,7 @@ func (a *App) startCommand(name string, arg ...string) error {
 
 // startup is the Wails OnStartup hook.
 func (a *App) startup(ctx context.Context) {
+	tracef("OnStartup")
 	a.mu.Lock()
 	a.ctx = ctx
 	a.mu.Unlock()
@@ -167,6 +168,7 @@ func (a *App) Ready(inlinedPath string) {
 	a.pending = nil
 	ctx := a.ctx
 	a.mu.Unlock()
+	tracef("Ready(%q)", inlinedPath)
 	if ctx != nil {
 		// macOS: when the app is launched by opening a document, the window
 		// server swallows the order-front issued during

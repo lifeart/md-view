@@ -15,6 +15,7 @@ import (
 var assets embed.FS
 
 func main() {
+	tracef("main entry")
 	app := NewApp()
 
 	// Windows/Linux file associations arrive via argv; also a dev convenience
@@ -48,6 +49,7 @@ func main() {
 			// macOS file associations: fired at launch (possibly before the
 			// frontend exists — OpenPath buffers) and while running.
 			OnFileOpen: func(filePath string) {
+				tracef("OnFileOpen %s", filePath)
 				app.openPath(filePath)
 			},
 			About: &mac.AboutInfo{
