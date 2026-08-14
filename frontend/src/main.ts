@@ -11,7 +11,7 @@ import {
   ResolveLink,
   SetSettings,
 } from '../wailsjs/go/main/App';
-import { ClipboardSetText, EventsOn, WindowSetTitle } from '../wailsjs/runtime/runtime';
+import { ClipboardSetText, EventsOn, WindowSetTitle, WindowShow } from '../wailsjs/runtime/runtime';
 import { settings } from '../wailsjs/go/models';
 
 // ---------- helpers ----------
@@ -474,7 +474,16 @@ async function openViaDialog(): Promise<void> {
 async function init(): Promise<void> {
   // Subscribe before Ready() so no buffered open events are lost.
   EventsOn('doc:open', (path: string) => {
-    void navigateTo(path);
+    void (async () => {
+      // Warm opens arrive with the window hidden (or showing the previous
+      // document). Commit the new content FIRST, force a layout, and only
+      // then show the window — showing before the swap flashes stale
+      // content. On failure the error banner is committed instead, and the
+      // window must still appear to make it visible.
+      await navigateTo(path);
+      void content.offsetHeight;
+      WindowShow();
+    })();
   });
   EventsOn('app:error', (msg: string) => {
     showError(msg);

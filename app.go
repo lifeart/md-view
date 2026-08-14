@@ -195,9 +195,9 @@ func (a *App) openPath(path string) {
 	a.windowShown = true
 	a.mu.Unlock()
 	// Warm delivery into a running instance: the window may be hidden (closed
-	// with HideWindowOnClose, or a --hidden prewarm launch) — show it. On cold
-	// launches this branch is never reached before Ready.
-	runtime.WindowShow(ctx)
+	// with HideWindowOnClose, or a --hidden prewarm launch). The FRONTEND
+	// shows it after committing the new document — showing from here would
+	// present a frame of the previously displayed content first.
 	runtime.EventsEmit(ctx, EventDocOpen, abs)
 }
 
