@@ -1,0 +1,9 @@
+# macOS
+.DS_Store
+
+# Node
+node_modules/
+dist/
+
+# Rust / Tauri
+src-tauri/target/
