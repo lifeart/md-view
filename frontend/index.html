@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8"/>
+    <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+    <meta http-equiv="Content-Security-Policy"
+          content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https: http:; connect-src 'self' ws: wss:; object-src 'none'; base-uri 'none'"/>
+    <title>md-view</title>
+</head>
+<body>
+<header id="toolbar">
+    <div class="nav-group">
+        <button id="btn-back" title="Back (⌘[)" aria-label="Back" disabled>&#x25C0;</button>
+        <button id="btn-forward" title="Forward (⌘])" aria-label="Forward" disabled>&#x25B6;</button>
+    </div>
+    <div id="doc-title" title=""></div>
+    <div class="nav-group">
+        <button id="btn-appearance" title="Appearance" aria-label="Appearance">Aa</button>
+    </div>
+</header>
+
+<div id="error-banner" hidden>
+    <span id="error-text"></span>
+    <button id="error-dismiss" aria-label="Dismiss">&times;</button>
+</div>
+
+<div id="appearance-menu" hidden>
+    <div class="row">
+        <label for="set-theme">Theme</label>
+        <select id="set-theme">
+            <option value="light">Light</option>
+            <option value="dark">Dark</option>
+            <option value="sepia">Sepia</option>
+            <option value="system">System</option>
+        </select>
+    </div>
+    <div class="row">
+        <label for="set-font">Font</label>
+        <select id="set-font">
+            <option value="">System</option>
+            <option value="Georgia, 'Times New Roman', serif">Serif</option>
+            <option value="'Helvetica Neue', Helvetica, Arial, sans-serif">Helvetica</option>
+            <option value="ui-monospace, 'SF Mono', Menlo, monospace">Monospace</option>
+        </select>
+    </div>
+    <div class="row">
+        <label for="set-size">Size</label>
+        <div class="stepper">
+            <button id="size-minus" aria-label="Smaller text">&minus;</button>
+            <span id="size-value">16</span>
+            <button id="size-plus" aria-label="Larger text">+</button>
+        </div>
+    </div>
+    <div class="row">
+        <label for="set-width">Width</label>
+        <input id="set-width" type="range" min="50" max="120" step="2"/>
+        <span id="width-value">72</span>
+    </div>
+</div>
+
+<div id="link-menu" hidden>
+    <button id="link-copy">Copy Link Address</button>
+</div>
+
+<main>
+    <article id="content">
+        <div class="empty-state">
+            <p>No document open.</p>
+            <p>Press <kbd>&#8984;O</kbd> to open a markdown file, or drop one here.</p>
+        </div>
+    </article>
+</main>
+
+<script src="./src/main.ts" type="module"></script>
+</body>
+</html>
