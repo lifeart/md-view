@@ -32,10 +32,11 @@ type App struct {
 	scope    *links.Scope
 	store    *settings.Store
 
-	mu       sync.Mutex
-	ready    bool // frontend subscribed and called Ready()
-	pending  []string
-	storeErr error // deferred settings-store init error, surfaced via GetSettings
+	mu         sync.Mutex
+	ready      bool // frontend subscribed and called Ready()
+	pending    []string
+	currentDoc string // last document opened or rendered; re-inlined on reload
+	storeErr   error  // deferred settings-store init error, surfaced via GetSettings
 
 	// launch starts an external command (system-default open, reveal in file
 	// manager). Injectable so tests can assert what would be executed without
@@ -111,6 +112,7 @@ func (a *App) openPath(path string) {
 		return
 	}
 	a.mu.Lock()
+	a.currentDoc = abs
 	ready, ctx := a.ready, a.ctx
 	if !ready || ctx == nil {
 		a.pending = append(a.pending, abs)
@@ -119,6 +121,18 @@ func (a *App) openPath(path string) {
 	}
 	a.mu.Unlock()
 	runtime.EventsEmit(ctx, EventDocOpen, abs)
+}
+
+// inlineDocPath picks the document to inline into the served shell: the first
+// buffered open if any (Ready(inlinedPath) then skips re-delivering it),
+// otherwise the current document (covers webview reloads).
+func (a *App) inlineDocPath() string {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	if len(a.pending) > 0 {
+		return a.pending[0]
+	}
+	return a.currentDoc
 }
 
 func (a *App) emitError(msg string) {
@@ -140,16 +154,20 @@ func (a *App) emit(event, msg string) {
 	}
 }
 
-// Ready is called by the frontend once it has subscribed to events; buffered
-// open requests (OnFileOpen can fire before the webview exists) are flushed.
-func (a *App) Ready() {
+// Ready is called by the frontend once it has subscribed to events.
+// inlinedPath is the document path the frontend hydrated from the served
+// shell ("" when nothing was inlined): the buffered open for that path is
+// skipped (it is already rendered on screen), any open that arrived later is
+// still delivered, and after a webview reload with nothing inlined or
+// buffered the current document is re-delivered so it cannot be lost.
+func (a *App) Ready(inlinedPath string) {
 	a.mu.Lock()
 	a.ready = true
-	pending := a.pending
+	deliveries := readyDeliveries(inlinedPath, a.pending, a.currentDoc)
 	a.pending = nil
 	ctx := a.ctx
 	a.mu.Unlock()
-	for _, p := range pending {
+	for _, p := range deliveries {
 		runtime.EventsEmit(ctx, EventDocOpen, p)
 	}
 }
@@ -165,7 +183,15 @@ func (a *App) RenderDocument(path string) (render.Doc, error) {
 	if !links.IsMarkdownPath(resolved) {
 		return render.Doc{}, fmt.Errorf("not a markdown file: %s", resolved)
 	}
-	return a.renderer.RenderFile(resolved)
+	doc, err := a.renderer.RenderFile(resolved)
+	if err != nil {
+		return render.Doc{}, err
+	}
+	// Track the displayed document so a webview reload can restore it.
+	a.mu.Lock()
+	a.currentDoc = doc.Path
+	a.mu.Unlock()
+	return doc, nil
 }
 
 // ResolveLink classifies href clicked inside the document at basePath.
@@ -362,10 +388,16 @@ func (a *App) onSecondInstanceLaunch(data options.SecondInstanceData) {
 	}
 }
 
-// assetMiddleware serves /doc-asset/?p=<abs path> requests for local images
-// referenced by documents. Every request is validated against the scope.
+// assetMiddleware implements the two in-app routes: the initial shell request
+// ("/" or "/index.html") is served with the initial state inlined (see
+// inline.go), and /doc-asset/?p=<abs path> serves local images referenced by
+// documents. Every asset request is validated against the scope.
 func (a *App) assetMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if isShellRequest(r) {
+			a.serveShell(w, r, next)
+			return
+		}
 		if !strings.HasPrefix(r.URL.Path, render.AssetRoutePrefix) {
 			next.ServeHTTP(w, r)
 			return

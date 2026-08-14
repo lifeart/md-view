@@ -12,7 +12,7 @@ export function OpenFileDialog():Promise<string>;
 
 export function OpenWithSystemDefault(arg1:string):Promise<void>;
 
-export function Ready():Promise<void>;
+export function Ready(arg1:string):Promise<void>;
 
 export function RenderDocument(arg1:string):Promise<render.Doc>;
 

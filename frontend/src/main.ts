@@ -456,6 +456,23 @@ async function init(): Promise<void> {
     showNotice(msg);
   });
 
+  // Fast path: the Go middleware may have served the shell with the document
+  // already rendered into #content (see ARCHITECTURE.md). Hydrate state from
+  // it — no RenderDocument call, the HTML is already on screen — and report
+  // the inlined path to Ready() so Go does not deliver that open again.
+  const inlinedPath = content.dataset.docPath ?? '';
+  if (inlinedPath) {
+    currentPath = inlinedPath;
+    const inlinedTitle = content.dataset.docTitle ?? '';
+    docTitle.textContent = inlinedTitle;
+    docTitle.title = inlinedPath;
+    WindowSetTitle(`${inlinedTitle} — md-view`);
+    history.push({ path: inlinedPath, scrollY: 0, anchor: '' });
+    historyIndex = 0;
+    updateNavButtons();
+    enhanceCodeBlocks();
+  }
+
   try {
     current = await GetSettings();
   } catch (err) {
@@ -464,7 +481,7 @@ async function init(): Promise<void> {
   applySettings();
 
   try {
-    await Ready();
+    await Ready(inlinedPath);
   } catch (err) {
     showError(`Startup handshake failed: ${errMsg(err)}`);
   }

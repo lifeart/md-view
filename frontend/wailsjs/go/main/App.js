@@ -18,8 +18,8 @@ export function OpenWithSystemDefault(arg1) {
   return window['go']['main']['App']['OpenWithSystemDefault'](arg1);
 }
 
-export function Ready() {
-  return window['go']['main']['App']['Ready']();
+export function Ready(arg1) {
+  return window['go']['main']['App']['Ready'](arg1);
 }
 
 export function RenderDocument(arg1) {

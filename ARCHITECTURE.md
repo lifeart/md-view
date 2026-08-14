@@ -59,9 +59,9 @@ Why this shape:
 
 ### Opening a file (the fast path)
 
-1. Finder launches the app; the path arrives via `OnFileOpen` (macOS) or argv (Windows/Linux). `OnFileOpen` can fire before the frontend is ready, so the Go side buffers the "current document" path.
-2. The Wails asset server middleware intercepts the initial page request and returns the HTML shell **with the rendered, sanitized document already inlined**, plus critical CSS and the persisted theme variables.
-3. First paint is the finished document. The TS layer hydrates afterward (event listeners only — no DOM rebuilding).
+1. Finder launches the app; the path arrives via `OnFileOpen` (macOS) or argv (Windows/Linux). `OnFileOpen` can fire before the frontend is ready, so the Go side buffers pending opens and always remembers the current document.
+2. The Wails asset server middleware intercepts the initial shell request (`/` or `/index.html`) and rewrites it before serving. The persisted appearance settings are **always** inlined — a `data-theme` attribute plus font-size/width/family CSS variable overrides on `<html>` (values HTML-escaped; they are user-controlled strings) — so first paint carries the correct theme with no flash. When a document is already known (a buffered open, or the current document on a webview reload), its rendered, bluemonday-sanitized HTML is also inlined into the content container, together with the window/document title and `data-doc-path`/`data-doc-dir` attributes.
+3. First paint is the finished, correctly themed document. The TS layer hydrates afterward: it reads `data-doc-path`, seeds its state (current path, first history entry, title) **without** calling `RenderDocument`, and passes the inlined path to `Ready(inlinedPath)`. Go then skips delivering the buffered open for that same path but still delivers any open that arrived later; `Ready("")` (nothing inlined) flushes buffered opens as `doc:open` events, and — with nothing pending either — re-delivers the current document so a webview reload cannot lose it.
 4. Subsequent navigations call a bound Go method (`RenderDocument(path)`) and swap the content in place — no page reload, JS state (history stack) survives.
 
 Performance budget: cold launch → content **< 400 ms**, warm launch **< 150 ms**, in-app navigation to another document **< 50 ms**, 1 MB file parse+render **< 400 ms** (typical prose ~150 ms measured). Syntax highlighting is capped: any single code fence larger than 50 KB renders as a plain escaped `<pre><code>` block (no chroma) — chroma tokenization costs seconds per megabyte, so the cap keeps pathological code-heavy documents bounded.
@@ -112,7 +112,7 @@ Rendered markdown is untrusted input:
 - `bluemonday` strips scripts, iframes, event handlers, and dangerous URLs from the rendered HTML (raw HTML in markdown is sanitized, not passed through). The policy allows chroma's `span` classes and heading-anchor ids.
 - Strict CSP in the webview: no remote scripts/styles; remote images allowed (settable), everything else local.
 - Filesystem access is scoped: the asset server and `RenderDocument` refuse any path outside the opened document's directory tree (extended per navigation) — the webview can never read arbitrary paths.
-- Bound-method surface is minimal: `RenderDocument(path)`, `ResolveLink(base, href)`, `GetSettings()/SetSettings()`.
+- Bound-method surface is minimal: `RenderDocument(path)`, `ResolveLink(base, href)`, `GetSettings()/SetSettings()`, `Ready(inlinedPath)`, `OpenFileDialog()`, `OpenExternal(url)` (http/https only), `OpenWithSystemDefault(path)` (scope-checked, executables refused and revealed instead).
 
 ## Project layout
 
