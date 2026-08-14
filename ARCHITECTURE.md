@@ -66,6 +66,24 @@ Why this shape:
 
 Performance budget: cold launch → content **< 400 ms**, warm launch **< 150 ms**, in-app navigation to another document **< 50 ms**, 1 MB file parse+render **< 400 ms** (typical prose ~150 ms measured). Syntax highlighting is capped: any single code fence larger than 50 KB renders as a plain escaped `<pre><code>` block (no chroma) — chroma tokenization costs seconds per megabyte, so the cap keeps pathological code-heavy documents bounded.
 
+#### Getting the window on screen
+
+macOS swallows the order-front AppKit issues during `applicationWillFinishLaunching` when the app was launched by opening a document (the LaunchServices `odoc` Apple Event a Finder double-click sends): AppKit reports the window as visible while the window server keeps it off screen for ~5 s, until the LaunchServices check-in times out. Any order-front issued once the main loop is running clears it, so `OnStartup` — the first callback Wails makes, before it hands the main thread to `NSApplication` — re-asserts `WindowShow`; queued there it runs on the first main-loop turn. `Ready()` re-asserts once more as a safety net (`WindowShow` is idempotent).
+
+The window therefore appears before the webview has painted, ~100 ms ahead of the document — the same ordering a launch with no document already had. The window's background colour is what shows in that gap (and wherever the web view has not drawn, e.g. during a live resize), so it tracks the persisted theme rather than a hard-coded white; `TestThemeBackgroundMatchesCSS` pins those colours to `theme.css`.
+
+Measured on an M-series Mac, medians of 7 interleaved runs per arm, time from the launch request to the window being on screen (`CGWindowList`):
+
+| Launch path | Show from `Ready()` | Show from `OnStartup` |
+|---|---|---|
+| Finder / file association (`odoc`) | 344 ms | **240 ms** |
+| App launch, no document | 219 ms | 217 ms |
+| Binary + argv (no LaunchServices) | 177 ms | 183 ms |
+
+What is left is not ours: ~105 ms of LaunchServices + `exec` + dyld + Go package init (of which chroma's lexer and style registries are ~15 ms), ~95 ms of Wails setup and WKWebView creation, then the window server. The document itself paints ~130 ms after that, dominated by WKWebView's first navigation; serving the shell (render + inject) costs ~2.5 ms of it.
+
+`MDVIEW_TRACE=<file>` makes the binary append timestamped launch milestones to that file — LaunchServices launches have no stderr to attach to, so this is the only way to time them from inside the process.
+
 Note: file associations only take effect for the **built/installed** app bundle, not under `wails dev` — during development, open files via `Cmd+O`/drag-and-drop or a CLI argument.
 
 Per-platform delivery of the opened file:
