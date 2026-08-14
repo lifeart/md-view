@@ -1,0 +1,161 @@
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+# Releases are never cancelled mid-flight: a superseded run would leave a
+# half-created GitHub release behind.
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+env:
+  WAILS_VERSION: v2.14.0
+  NODE_VERSION: "22"
+  # Master switch for the optional Developer ID signing + notarization steps
+  # below. Kept "false" so this workflow is green on a fresh repository with
+  # zero configuration; see the comment block by those steps before flipping.
+  ENABLE_APPLE_SIGNING: "false"
+
+jobs:
+  macos-dmg:
+    name: Build the macOS DMG and publish the release
+    runs-on: macos-15
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache-dependency-path: go.sum
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Put GOPATH/bin on PATH
+        run: echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
+
+      - name: Install the Wails CLI
+        run: go install "github.com/wailsapp/wails/v2/cmd/wails@$WAILS_VERSION"
+
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: npm ci
+
+      # v0.1.0 -> 0.1.0. Only names the DMG; the bundle's own version comes
+      # from `info.productVersion` in wails.json, so bump that in the same
+      # commit you tag.
+      - name: Derive the version from the tag
+        run: echo "VERSION=${GITHUB_REF_NAME#v}" >> "$GITHUB_ENV"
+
+      - name: wails build
+        run: wails build
+
+      - name: go test
+        run: go test ./...
+
+      # ==================================================================
+      # OPTIONAL, DISABLED BY DEFAULT: Developer ID signing + notarization.
+      #
+      # The three steps guarded by `env.ENABLE_APPLE_SIGNING == 'true'`
+      # (import cert -> sign the .app -> notarize and staple the DMG) are
+      # skipped as shipped, because this repository has no Apple secrets.
+      # Releases therefore carry the ad-hoc signature `wails build` applies:
+      # they run, but Gatekeeper asks for a right-click -> Open on first
+      # launch and the identity changes every build (macOS then resets the
+      # app's TCC permissions — see README).
+      #
+      # To enable:
+      #   1. Add these repository secrets (Settings -> Secrets -> Actions):
+      #        MACOS_CERTIFICATE         base64 of a "Developer ID
+      #                                  Application" .p12 export
+      #                                  (`base64 -i cert.p12 | pbcopy`)
+      #        MACOS_CERTIFICATE_PWD     password for that .p12
+      #        MACOS_SIGNING_IDENTITY    e.g. "Developer ID Application:
+      #                                  Your Name (TEAMID)"
+      #        APPLE_ID                  Apple ID email of the account
+      #        NOTARY_PASSWORD           app-specific password for it
+      #                                  (appleid.apple.com -> App-Specific
+      #                                  Passwords), NOT the account password
+      #        TEAM_ID                   10-character Apple Developer Team ID
+      #   2. Set ENABLE_APPLE_SIGNING to "true" in this workflow's `env:`.
+      #
+      # Notarization is asynchronous; `notarytool submit --wait` blocks until
+      # Apple answers (usually a few minutes, occasionally much longer), so
+      # keep the job timeout generous when you turn this on.
+      # ==================================================================
+      - name: Import the Developer ID certificate (optional)
+        if: env.ENABLE_APPLE_SIGNING == 'true'
+        uses: apple-actions/import-codesign-certs@v3
+        with:
+          p12-file-base64: ${{ secrets.MACOS_CERTIFICATE }}
+          p12-password: ${{ secrets.MACOS_CERTIFICATE_PWD }}
+
+      - name: Sign the app bundle with Developer ID (optional)
+        if: env.ENABLE_APPLE_SIGNING == 'true'
+        env:
+          SIGNING_IDENTITY: ${{ secrets.MACOS_SIGNING_IDENTITY }}
+        run: |
+          codesign --force --deep --timestamp --options runtime \
+            --sign "$SIGNING_IDENTITY" build/bin/md-view.app
+          codesign --verify --strict --verbose=2 build/bin/md-view.app
+
+      - name: Build the DMG
+        run: |
+          STAGE="$(mktemp -d)"
+          cp -R build/bin/md-view.app "$STAGE/"
+          ln -s /Applications "$STAGE/Applications"
+          hdiutil create \
+            -volname "md-view" \
+            -srcfolder "$STAGE" \
+            -ov -format UDZO \
+            "build/bin/md-view-$VERSION.dmg"
+          hdiutil verify "build/bin/md-view-$VERSION.dmg"
+
+      # See the comment block above for the secrets this needs.
+      - name: Notarize and staple the DMG (optional)
+        if: env.ENABLE_APPLE_SIGNING == 'true'
+        env:
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          NOTARY_PASSWORD: ${{ secrets.NOTARY_PASSWORD }}
+          TEAM_ID: ${{ secrets.TEAM_ID }}
+        run: |
+          xcrun notarytool submit "build/bin/md-view-$VERSION.dmg" \
+            --apple-id "$APPLE_ID" \
+            --password "$NOTARY_PASSWORD" \
+            --team-id "$TEAM_ID" \
+            --wait
+          xcrun stapler staple "build/bin/md-view-$VERSION.dmg"
+          spctl --assess --type open --context context:primary-signature \
+            -vv "build/bin/md-view-$VERSION.dmg"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: md-view-${{ env.VERSION }}-macos-arm64-dmg
+          path: build/bin/md-view-${{ env.VERSION }}.dmg
+          if-no-files-found: error
+
+      - name: Publish the GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: build/bin/md-view-${{ env.VERSION }}.dmg
+          generate_release_notes: true
+          fail_on_unmatched_files: true
+          body: |
+            ## md-view ${{ github.ref_name }}
+
+            Open the DMG and drag **md-view** into **Applications**.
+
+            Unless the optional signing steps in
+            `.github/workflows/release.yml` have been enabled, this build is
+            **ad-hoc signed and not notarized** — macOS Gatekeeper will ask
+            you to right-click the app and choose **Open** the first time you
+            launch it.
