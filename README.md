@@ -22,7 +22,7 @@ See [ARCHITECTURE.md](ARCHITECTURE.md) for the full design.
 
 Build the DMG (or grab a built one), then:
 
-1. Open `md-view-0.1.0.dmg` and drag **md-view** into **Applications**.
+1. Open `md-view-0.1.0.dmg` and drag **MD View** into **Applications**.
 2. First launch of a locally-signed app may require right-click → **Open** once (Gatekeeper).
 
 The very first launch after installing may be slightly slower while macOS verifies the new binary; after that, double-clicking a markdown file shows the rendered window in ~0.2 s.
@@ -42,7 +42,7 @@ File associations are registered by the app bundle, but macOS still needs you to
 **Scripted (all extensions at once):**
 
 ```sh
-swift scripts/set-default.swift            # uses /Applications/md-view.app
+swift scripts/set-default.swift            # uses "/Applications/MD View.app"
 ```
 
 The script assigns md-view as default for `.md`, `.markdown`, `.mdown`, and `.mkd` via the same `NSWorkspace` API Finder uses, and prints the before/after handler for each type. (Alternative if you use [duti](https://github.com/moretension/duti): `duti -s com.wails.md-view net.daringfireball.markdown all`.)
@@ -73,7 +73,7 @@ scripts/sign.sh            # optional: re-sign with your Apple Development cert
 DMG (compressed, with an Applications shortcut):
 
 ```sh
-STAGE=$(mktemp -d) && cp -R build/bin/md-view.app "$STAGE/" && ln -s /Applications "$STAGE/Applications"
+STAGE=$(mktemp -d) && cp -R build/bin/md-view.app "$STAGE/MD View.app" && ln -s /Applications "$STAGE/Applications"
 hdiutil create -volname "md-view" -srcfolder "$STAGE" -ov -format UDZO build/bin/md-view-0.1.0.dmg
 ```
 

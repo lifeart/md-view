@@ -5,7 +5,7 @@
 set -e
 
 PLIST="$HOME/Library/LaunchAgents/com.wails.md-view.prewarm.plist"
-BIN="/Applications/md-view.app/Contents/MacOS/md-view"
+BIN="/Applications/MD View.app/Contents/MacOS/md-view"
 
 case "$1" in
 install)

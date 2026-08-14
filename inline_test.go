@@ -103,7 +103,7 @@ func TestServeShellInlinesDocAndSettings(t *testing.T) {
 	if !strings.Contains(body, `id="md-view-test-document"`) {
 		t.Errorf("served shell missing rendered document content")
 	}
-	if !strings.Contains(body, "<title>md-view Test Document — md-view</title>") {
+	if !strings.Contains(body, "<title>md-view Test Document — MD View</title>") {
 		t.Errorf("served shell missing inlined window title")
 	}
 	if strings.Contains(body, "No document open.") {
@@ -250,7 +250,7 @@ func TestServeShellAgainstBuiltDist(t *testing.T) {
 		`data-theme="dark"`,
 		fmt.Sprintf(`data-doc-path="%s"`, index),
 		`id="md-view-test-document"`,
-		"<title>md-view Test Document — md-view</title>",
+		"<title>md-view Test Document — MD View</title>",
 	} {
 		if !strings.Contains(body, want) {
 			t.Errorf("built shell missing %q", want)
@@ -268,7 +268,7 @@ func TestServeShellAgainstBuiltDist(t *testing.T) {
 // and must be HTML-escaped; hostile font families must not reach the style
 // attribute at all.
 func TestInjectInitialStateEscaping(t *testing.T) {
-	shell := []byte(`<html lang="en"><head><title>md-view</title></head><body>` +
+	shell := []byte(`<html lang="en"><head><title>MD View</title></head><body>` +
 		`<div id="doc-title" title=""></div>` +
 		`<article id="content"><div class="empty-state">empty</div></article></body></html>`)
 
