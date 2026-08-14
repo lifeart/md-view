@@ -36,6 +36,11 @@ type App struct {
 	ready    bool // frontend subscribed and called Ready()
 	pending  []string
 	storeErr error // deferred settings-store init error, surfaced via GetSettings
+
+	// launch starts an external command (system-default open, reveal in file
+	// manager). Injectable so tests can assert what would be executed without
+	// spawning anything.
+	launch func(name string, arg ...string) error
 }
 
 // NewApp creates the application core.
@@ -51,7 +56,25 @@ func NewApp() *App {
 	} else {
 		app.store = store
 	}
+	app.launch = app.startCommand
 	return app
+}
+
+// startCommand is the default launch implementation: start the command,
+// release it, and surface a failed exit as a UI error (never silently).
+func (a *App) startCommand(name string, arg ...string) error {
+	cmd := exec.Command(name, arg...)
+	if err := cmd.Start(); err != nil {
+		return err
+	}
+	// Release the child; we don't care about its exit status but must not
+	// leave a zombie.
+	go func() {
+		if err := cmd.Wait(); err != nil {
+			a.emitError(fmt.Sprintf("%s failed: %v", name, err))
+		}
+	}()
+	return nil
 }
 
 // startup is the Wails OnStartup hook.
@@ -99,11 +122,19 @@ func (a *App) openPath(path string) {
 }
 
 func (a *App) emitError(msg string) {
+	a.emit("app:error", msg)
+}
+
+func (a *App) emitNotice(msg string) {
+	a.emit("app:notice", msg)
+}
+
+func (a *App) emit(event, msg string) {
 	a.mu.Lock()
 	ctx := a.ctx
 	a.mu.Unlock()
 	if ctx != nil {
-		runtime.EventsEmit(ctx, "app:error", msg)
+		runtime.EventsEmit(ctx, event, msg)
 	} else {
 		fmt.Fprintln(os.Stderr, "md-view:", msg)
 	}
@@ -224,32 +255,86 @@ func (a *App) OpenExternal(rawURL string) error {
 	return nil
 }
 
+// systemOpenBlockedExts are extensions that indicate runnable content: opening
+// them with the system default would execute or install them, not view them.
+var systemOpenBlockedExts = map[string]bool{
+	".command":     true,
+	".sh":          true,
+	".zsh":         true,
+	".bash":        true,
+	".tool":        true,
+	".terminal":    true,
+	".workflow":    true,
+	".app":         true,
+	".pkg":         true,
+	".dmg":         true,
+	".scpt":        true,
+	".applescript": true,
+	".jar":         true,
+	".py":          true,
+	".rb":          true,
+	".pl":          true,
+}
+
+// isBlockedForSystemOpen reports whether a file must not be handed to the OS
+// default handler: any executable permission bit on a regular file, or an
+// extension from the runnable-content denylist.
+func isBlockedForSystemOpen(path string, info os.FileInfo) bool {
+	if systemOpenBlockedExts[strings.ToLower(filepath.Ext(path))] {
+		return true
+	}
+	return info.Mode().IsRegular() && info.Mode().Perm()&0o111 != 0
+}
+
 // OpenWithSystemDefault opens a scope-checked local file with the OS default
-// application (PDFs, images, etc.).
+// application (PDFs, images, etc.). Files that look executable (any +x bit or
+// a runnable-content extension) are never launched — the user gets a notice
+// and the file is revealed in the file manager instead.
 func (a *App) OpenWithSystemDefault(path string) error {
 	resolved, err := a.scope.Check(path)
 	if err != nil {
 		return err
 	}
-	var cmd *exec.Cmd
-	switch goruntime.GOOS {
-	case "darwin":
-		cmd = exec.Command("open", resolved)
-	case "windows":
-		cmd = exec.Command("rundll32", "url.dll,FileProtocolHandler", resolved)
-	default:
-		cmd = exec.Command("xdg-open", resolved)
-	}
-	if err := cmd.Start(); err != nil {
+	info, err := os.Stat(resolved)
+	if err != nil {
 		return fmt.Errorf("open %s: %w", resolved, err)
 	}
-	// Release the child; we don't care about its exit status but must not
-	// leave a zombie.
-	go func() {
-		if err := cmd.Wait(); err != nil {
-			a.emitError(fmt.Sprintf("System open failed for %s: %v", resolved, err))
-		}
-	}()
+	if isBlockedForSystemOpen(resolved, info) {
+		a.emitNotice(fmt.Sprintf("%s looks executable — revealing it in the file manager instead of opening it", filepath.Base(resolved)))
+		return a.revealInFileManager(resolved)
+	}
+	var name string
+	var args []string
+	switch goruntime.GOOS {
+	case "darwin":
+		name, args = "open", []string{resolved}
+	case "windows":
+		name, args = "rundll32", []string{"url.dll,FileProtocolHandler", resolved}
+	default:
+		name, args = "xdg-open", []string{resolved}
+	}
+	if err := a.launch(name, args...); err != nil {
+		return fmt.Errorf("open %s: %w", resolved, err)
+	}
+	return nil
+}
+
+// revealInFileManager shows the file in Finder/Explorer (selected) rather than
+// opening it. On Linux the containing directory is opened.
+func (a *App) revealInFileManager(resolved string) error {
+	var name string
+	var args []string
+	switch goruntime.GOOS {
+	case "darwin":
+		name, args = "open", []string{"-R", resolved}
+	case "windows":
+		name, args = "explorer", []string{"/select," + resolved}
+	default:
+		name, args = "xdg-open", []string{filepath.Dir(resolved)}
+	}
+	if err := a.launch(name, args...); err != nil {
+		return fmt.Errorf("reveal %s: %w", resolved, err)
+	}
 	return nil
 }
 

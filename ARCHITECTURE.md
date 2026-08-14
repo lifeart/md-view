@@ -85,7 +85,7 @@ All clicks are intercepted in `main.ts` and routed:
 | `#heading` | Scroll within the current document (slugs generated at render time). |
 | Relative/absolute path to `.md`/`.markdown` | Resolve against the current file's directory in Go, render, swap content in place, push a history entry. Supports `file.md#section`. |
 | `http(s)://…` | Open in the default browser (`runtime.BrowserOpenURL`). Never loaded in-app. |
-| Other local files (PDFs, etc.) | Open with the system default app (`open` on macOS and equivalents). |
+| Other local files (PDFs, etc.) | Open with the system default app (`open` on macOS and equivalents). Files that look executable (any `+x` bit, or a runnable-content extension such as `.sh`/`.app`/`.pkg`) are never launched — the user gets a notice and the file is revealed in the file manager instead. |
 | Images (`<img>` relative src) | Rewritten at render time to an asset-server route (`/doc-asset/…`); the handler validates every request against the current document's directory scope. |
 
 ### Navigation history

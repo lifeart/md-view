@@ -4,6 +4,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -193,6 +194,106 @@ func TestAssetMiddleware(t *testing.T) {
 	h.ServeHTTP(rec, httptest.NewRequest(http.MethodPost, "/doc-asset/?p=x", nil))
 	if rec.Code != http.StatusMethodNotAllowed {
 		t.Errorf("POST: status %d, want 405", rec.Code)
+	}
+}
+
+// TestOpenWithSystemDefaultBlocksExecutables: F3 — executables are never
+// handed to the OS default handler; they are revealed in the file manager
+// with a user-visible notice instead. Non-executable documents still open.
+func TestOpenWithSystemDefaultBlocksExecutables(t *testing.T) {
+	// EvalSymlinks: scope.Check returns symlink-resolved paths, and macOS
+	// temp dirs live behind the /var -> /private/var symlink.
+	dir, err := filepath.EvalSymlinks(t.TempDir())
+	if err != nil {
+		t.Fatalf("resolve temp dir: %v", err)
+	}
+
+	writeFile := func(name string, mode os.FileMode) string {
+		t.Helper()
+		p := filepath.Join(dir, name)
+		if err := os.WriteFile(p, []byte("payload"), mode); err != nil {
+			t.Fatalf("write %s: %v", name, err)
+		}
+		return p
+	}
+	md := writeFile("doc.md", 0o644)
+	pdf := writeFile("report.pdf", 0o644)
+	execFile := writeFile("tool.bin", 0o755)     // +x bit, innocuous extension
+	pkgFile := writeFile("installer.pkg", 0o644) // denylisted extension, no +x
+
+	app := newTestApp()
+	var launched [][]string
+	app.launch = func(name string, arg ...string) error {
+		launched = append(launched, append([]string{name}, arg...))
+		return nil
+	}
+	app.openPath(md) // brings dir into scope
+
+	// Plain document: opened with the system default.
+	launched = nil
+	if err := app.OpenWithSystemDefault(pdf); err != nil {
+		t.Fatalf("OpenWithSystemDefault(pdf): %v", err)
+	}
+	if len(launched) != 1 || launched[0][0] != "open" || launched[0][1] != pdf {
+		t.Errorf("pdf launch = %v, want [open %s]", launched, pdf)
+	}
+
+	// Executable permission bit: rejected, revealed instead (open -R on macOS).
+	launched = nil
+	if err := app.OpenWithSystemDefault(execFile); err != nil {
+		t.Fatalf("OpenWithSystemDefault(+x): %v", err)
+	}
+	if len(launched) != 1 || launched[0][0] != "open" || launched[0][1] != "-R" || launched[0][2] != execFile {
+		t.Errorf("+x launch = %v, want [open -R %s]", launched, execFile)
+	}
+
+	// Denylisted extension without +x: also rejected and revealed.
+	launched = nil
+	if err := app.OpenWithSystemDefault(pkgFile); err != nil {
+		t.Fatalf("OpenWithSystemDefault(pkg): %v", err)
+	}
+	if len(launched) != 1 || launched[0][1] != "-R" || launched[0][2] != pkgFile {
+		t.Errorf("pkg launch = %v, want [open -R %s]", launched, pkgFile)
+	}
+}
+
+func TestIsBlockedForSystemOpen(t *testing.T) {
+	dir := t.TempDir()
+	mk := func(name string, mode os.FileMode) (string, os.FileInfo) {
+		t.Helper()
+		p := filepath.Join(dir, name)
+		if err := os.WriteFile(p, []byte("x"), mode); err != nil {
+			t.Fatalf("write: %v", err)
+		}
+		// WriteFile does not change the mode of a pre-existing file; chmod so
+		// repeated names with different modes behave as declared.
+		if err := os.Chmod(p, mode); err != nil {
+			t.Fatalf("chmod: %v", err)
+		}
+		info, err := os.Stat(p)
+		if err != nil {
+			t.Fatalf("stat: %v", err)
+		}
+		return p, info
+	}
+	for _, c := range []struct {
+		name    string
+		mode    os.FileMode
+		blocked bool
+	}{
+		{"a.pdf", 0o644, false},
+		{"a.png", 0o644, false},
+		{"a.pdf", 0o755, true},  // +x bit wins even with a benign extension
+		{"run.sh", 0o644, true}, // denylisted extension without +x
+		{"RUN.SH", 0o644, true}, // case-insensitive extension match
+		{"do.command", 0o644, true},
+		{"x.applescript", 0o644, true},
+		{"pkg.jar", 0o644, true},
+	} {
+		p, info := mk(c.name, c.mode)
+		if got := isBlockedForSystemOpen(p, info); got != c.blocked {
+			t.Errorf("isBlockedForSystemOpen(%s, %v) = %v, want %v", c.name, c.mode, got, c.blocked)
+		}
 	}
 }
 
