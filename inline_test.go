@@ -175,6 +175,52 @@ func TestServeShellAfterReload(t *testing.T) {
 	}
 }
 
+// TestServeShellAgainstBuiltDist runs the same F2/F4 assertions against the
+// actual built shell (frontend/dist/index.html) that ships embedded in the
+// binary. Skipped when the frontend has not been built yet (fresh clone);
+// the source-shell tests above cover the markers in that case.
+func TestServeShellAgainstBuiltDist(t *testing.T) {
+	shell, err := os.ReadFile("frontend/dist/index.html")
+	if err != nil {
+		t.Skipf("frontend/dist not built (%v); run wails build first", err)
+	}
+	next := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		_, _ = w.Write(shell)
+	})
+
+	app := newTestApp()
+	app.store = settings.NewStoreAt(filepath.Join(t.TempDir(), "settings.json"))
+	if err := app.store.Save(settings.Settings{Theme: "dark", FontFamily: "", FontSize: 16, ContentWidth: 72}); err != nil {
+		t.Fatalf("save settings: %v", err)
+	}
+	index := testdataAbs(t, "index.md")
+	app.openPath(index)
+
+	rec := httptest.NewRecorder()
+	app.assetMiddleware(next).ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/", nil))
+	if rec.Code != http.StatusOK {
+		t.Fatalf("built shell status = %d", rec.Code)
+	}
+	body := rec.Body.String()
+	for _, want := range []string{
+		`data-theme="dark"`,
+		fmt.Sprintf(`data-doc-path="%s"`, index),
+		`id="md-view-test-document"`,
+		"<title>md-view Test Document — md-view</title>",
+	} {
+		if !strings.Contains(body, want) {
+			t.Errorf("built shell missing %q", want)
+		}
+	}
+	if strings.Contains(body, "No document open.") {
+		t.Errorf("built shell still contains the empty state")
+	}
+	if i := strings.Index(body, "<html"); i >= 0 {
+		t.Logf("served shell head: %.300s", body[i:])
+	}
+}
+
 // TestInjectInitialStateEscaping: injected values are user-controlled strings
 // and must be HTML-escaped; hostile font families must not reach the style
 // attribute at all.
