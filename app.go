@@ -167,6 +167,15 @@ func (a *App) Ready(inlinedPath string) {
 	a.pending = nil
 	ctx := a.ctx
 	a.mu.Unlock()
+	if ctx != nil {
+		// macOS: when the app is launched by opening a document, the window
+		// server swallows the order-front issued during
+		// applicationWillFinishLaunching — AppKit reports the window visible,
+		// but it stays off screen for ~5 s (LaunchServices check-in timeout).
+		// Re-asserting the show once the frontend is up makes it appear
+		// immediately; it is a no-op when the window is already on screen.
+		runtime.WindowShow(ctx)
+	}
 	for _, p := range deliveries {
 		runtime.EventsEmit(ctx, EventDocOpen, p)
 	}

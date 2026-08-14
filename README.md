@@ -17,7 +17,7 @@ Build the DMG (or grab a built one), then:
 1. Open `md-view-0.1.0.dmg` and drag **md-view** into **Applications**.
 2. First launch of a locally-signed app may require right-click → **Open** once (Gatekeeper).
 
-The very first launch after installing can take a few seconds while macOS verifies the new binary — every launch after that is fast (~0.1 s).
+The very first launch after installing may be slightly slower while macOS verifies the new binary; after that, double-clicking a markdown file shows the rendered window in ~0.3 s.
 
 ## Make it the default for all markdown files
 
