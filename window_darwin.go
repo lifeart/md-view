@@ -44,7 +44,13 @@ static void mdview_present_window(void) {
 			w.alphaValue = 0.01;
 			dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(50 * NSEC_PER_MSEC)),
 				dispatch_get_main_queue(), ^{
-				w.alphaValue = 1.0;
+				// Reveal as a 50 ms fade rather than an alpha jump — the
+				// window-level animator is compositor-synced, so the text
+				// appears smoothly regardless of webview paint timing.
+				[NSAnimationContext runAnimationGroup:^(NSAnimationContext *anim) {
+					anim.duration = 0.05;
+					[[w animator] setAlphaValue:1.0];
+				}];
 			});
 		}
 		[w makeKeyAndOrderFront:nil];

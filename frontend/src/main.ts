@@ -201,23 +201,21 @@ let navSeq = 0;
 // handler) and must be restored on the next show.
 let contentCleared = false;
 
-let fadeTimer: number | undefined;
-let fadeCleanup: number | undefined;
-
-// scheduleContentFade holds the content at opacity 0 and starts a 50 ms
-// fade-in after delayMs. The delay lets a hidden window's native reveal
-// happen first; the timers are unconditional so the content can never be
-// left transparent.
-function scheduleContentFade(delayMs: number): void {
-  if (fadeTimer !== undefined) window.clearTimeout(fadeTimer);
-  if (fadeCleanup !== undefined) window.clearTimeout(fadeCleanup);
-  content.classList.remove('fade-in');
-  content.classList.add('pre-fade');
-  fadeTimer = window.setTimeout(() => {
-    content.classList.remove('pre-fade');
-    content.classList.add('fade-in');
-    fadeCleanup = window.setTimeout(() => content.classList.remove('fade-in'), 150);
-  }, delayMs);
+// Same-document view transition: the engine snapshots the old state, applies
+// the DOM update, and crossfades (50 ms, see theme.css) — an atomic,
+// compositor-synced swap with no intermediate frame to flicker, replacing any
+// manual opacity choreography. Skipped (plain swap) when unsupported or when
+// the document is hidden — a hidden window cannot animate, and its
+// presentation is handled by the native alpha-gated reveal instead.
+function commitWithTransition(commit: () => void): Promise<void> {
+  const doc = document as Document & {
+    startViewTransition?: (cb: () => void) => { updateCallbackDone: Promise<void> };
+  };
+  if (doc.startViewTransition && document.visibilityState === 'visible') {
+    return doc.startViewTransition(commit).updateCallbackDone;
+  }
+  commit();
+  return Promise.resolve();
 }
 
 async function renderInto(path: string, token: number): Promise<boolean> {
@@ -230,12 +228,14 @@ async function renderInto(path: string, token: number): Promise<boolean> {
       // the newer document.
       return false;
     }
-    content.innerHTML = doc.html;
-    currentPath = doc.path;
-    docTitle.textContent = doc.title;
-    docTitle.title = doc.path;
-    WindowSetTitle(`${doc.title} — md-view`);
-    enhanceCodeBlocks();
+    await commitWithTransition(() => {
+      content.innerHTML = doc.html;
+      currentPath = doc.path;
+      docTitle.textContent = doc.title;
+      docTitle.title = doc.path;
+      WindowSetTitle(`${doc.title} — md-view`);
+      enhanceCodeBlocks();
+    });
     return true;
   } catch (err) {
     if (token === navSeq) {
@@ -502,14 +502,11 @@ async function init(): Promise<void> {
     void (async () => {
       // Commit the new document (or the error banner) first, then present:
       // PresentWindow gates the show natively so a hidden window's suspended
-      // compositor can never flash the previously displayed content. The text
-      // fades in on show — the fade is delayed past the native reveal (50 ms)
-      // when the window is hidden, because a CSS animation started while the
-      // compositor is suspended would finish invisibly.
-      const wasHidden = document.visibilityState !== 'visible';
+      // compositor can never flash the previously displayed content, and its
+      // reveal is a 50 ms native alpha fade. Visible-window swaps crossfade
+      // via the view transition inside renderInto.
       await navigateTo(path);
       contentCleared = false;
-      scheduleContentFade(wasHidden ? 70 : 0);
       void PresentWindow();
     })();
   });
@@ -546,7 +543,6 @@ async function init(): Promise<void> {
         const token = ++navSeq;
         const ok = await renderInto(currentPath, token);
         if (!ok) return;
-        scheduleContentFade(0);
         const entry = history[historyIndex];
         if (entry && entry.path === currentPath) {
           window.scrollTo(0, entry.scrollY);

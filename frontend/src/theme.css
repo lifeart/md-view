@@ -498,19 +498,16 @@ article .chroma {
   color: var(--fg);
 }
 
-/* ---------- content presentation fade ---------- */
+/* ---------- view transitions ---------- */
 
-/* Held transparent between commit and show (see scheduleContentFade). */
-#content.pre-fade {
-  opacity: 0;
+/* Document swaps run through document.startViewTransition (see main.ts):
+   the engine crossfades old -> new atomically. Keep it quick. */
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation-duration: 50ms;
 }
 
-#content.fade-in {
-  animation: content-fade-in 50ms ease-out;
-}
-
-@keyframes content-fade-in {
-  from {
-    opacity: 0;
-  }
+/* Cross-document navigations (e.g. a webview reload) get the same treatment. */
+@view-transition {
+  navigation: auto;
 }
