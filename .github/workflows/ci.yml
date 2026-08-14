@@ -1,0 +1,183 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+# One run per branch/PR; a new push cancels the run it superseded.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  # Pinned to the wails/v2 version in go.mod so the CLI that generates
+  # bindings matches the library the app compiles against.
+  WAILS_VERSION: v2.14.0
+  NODE_VERSION: "22"
+
+jobs:
+  # ---------------------------------------------------------------------
+  # macOS is the primary platform: full build, full test suite, and the
+  # checks that the two generated-and-committed artifacts are in sync.
+  # ---------------------------------------------------------------------
+  macos:
+    name: macOS build, test and generated-file sync
+    runs-on: macos-15
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache-dependency-path: go.sum
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Put GOPATH/bin on PATH
+        run: echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
+
+      - name: Install the Wails CLI
+        run: go install "github.com/wailsapp/wails/v2/cmd/wails@$WAILS_VERSION"
+
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: npm ci
+
+      - name: go vet
+        run: go vet ./...
+
+      - name: Frontend type check
+        working-directory: frontend
+        run: npx tsc --noEmit
+
+      # Pre-build run: proves the suite is green on a fresh clone, where
+      # TestServeShellAgainstBuiltDist skips because frontend/dist is empty.
+      - name: go test (pre-build)
+        run: go test ./...
+
+      # Builds the frontend, regenerates frontend/wailsjs bindings, compiles
+      # and packages build/bin/md-view.app.
+      - name: wails build
+        run: wails build
+
+      # Post-build run: the stronger check — TestServeShellAgainstBuiltDist
+      # now runs against the real built shell that ships embedded in the app.
+      - name: go test (post-build, exercises the built frontend/dist)
+        run: go test ./...
+
+      - name: Committed wailsjs bindings are in sync with the build
+        run: git diff --exit-code -- frontend/wailsjs
+
+      - name: frontend/src/chroma.css is in sync with its generator
+        run: |
+          go run ./tools/gen-chroma
+          git diff --exit-code -- frontend/src/chroma.css
+
+      # Catch-all: nothing else tracked (package-lock.json in particular)
+      # may be modified by the build.
+      - name: Working tree is clean after the build
+        run: git diff --exit-code
+
+      # .app bundles are directory trees with symlinks and an executable bit;
+      # upload-artifact flattens/loses those, so hand it a ditto archive.
+      - name: Archive the app bundle
+        run: ditto -c -k --keepParent build/bin/md-view.app build/bin/md-view-macos-arm64.app.zip
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: md-view-macos-arm64
+          path: build/bin/md-view-macos-arm64.app.zip
+          if-no-files-found: error
+          retention-days: 14
+
+  # ---------------------------------------------------------------------
+  # Linux keeps the cgo/GTK build path from rotting. webkit2gtk-4.0 was
+  # dropped in Ubuntu 24.04, so we install the 4.1 headers and select them
+  # with Wails' `webkit2_41` build tag.
+  #
+  # Tests are limited to ./internal/... on purpose: the root package tests
+  # assert macOS behaviour (they expect `open` / `open -R` from
+  # OpenWithSystemDefault, which is `xdg-open` on Linux).
+  # ---------------------------------------------------------------------
+  linux:
+    name: Linux compile and platform-independent tests
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache-dependency-path: go.sum
+
+      - name: Install GTK and WebKitGTK development headers
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            libgtk-3-dev \
+            libwebkit2gtk-4.1-dev
+
+      - name: go vet
+        run: go vet -tags webkit2_41 ./...
+
+      - name: go build
+        run: go build -tags webkit2_41 ./...
+
+      - name: go test (platform-independent packages)
+        run: go test -tags webkit2_41 ./internal/...
+
+  # ---------------------------------------------------------------------
+  # Windows: WebView2 needs no system packages, so the standard `wails build`
+  # runs as-is. No `go test` here — internal/links' table tests use POSIX
+  # absolute path literals and the root package tests assert macOS `open`
+  # commands, so the suite is macOS/Linux-shaped by design.
+  # ---------------------------------------------------------------------
+  windows:
+    name: Windows build
+    runs-on: windows-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache-dependency-path: go.sum
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Put GOPATH/bin on PATH
+        run: echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
+
+      - name: Install the Wails CLI
+        run: go install "github.com/wailsapp/wails/v2/cmd/wails@$WAILS_VERSION"
+
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: npm ci
+
+      - name: go vet
+        run: go vet ./...
+
+      - name: go build
+        run: go build ./...
+
+      - name: wails build
+        run: wails build
