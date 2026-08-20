@@ -11,3 +11,10 @@ frontend/dist/*
 # Wails build output
 build/bin/
 frontend/package.json.md5
+
+# Signing material is never committed: the Developer ID private key, its .p12
+# export and the App Store Connect API key live in ~/.apple-signing (see the
+# "Build & package" section of README.md).
+*.p12
+*.p8
+*.certSigningRequest

@@ -28,7 +28,7 @@ See [ARCHITECTURE.md](ARCHITECTURE.md) for the full design — including where a
 Build the DMG (or grab a built one), then:
 
 1. Open `md-view-0.1.0.dmg` and drag **MDv** into **Applications**.
-2. First launch of a locally-signed app may require right-click → **Open** once (Gatekeeper).
+2. Double-click to launch. A DMG built through `scripts/sign.sh` + `scripts/notarize.sh` (Developer ID + notarized) opens straight away on any Mac; an ad-hoc or development-signed one needs right-click → **Open** once.
 
 The very first launch after installing may be slightly slower while macOS verifies the new binary; after that, double-clicking a markdown file shows the rendered window in ~0.2 s.
 
@@ -73,10 +73,25 @@ Note: file associations only work for the built, installed bundle — under `wai
 
 ```sh
 wails build                # production bundle at build/bin/md-view.app
-scripts/sign.sh            # optional: re-sign with your Apple Development cert
+scripts/sign.sh            # re-sign with a stable identity (Developer ID if you have one)
+scripts/notarize.sh        # Developer ID only: notarize + staple, for other Macs
 ```
 
-`wails build` ad-hoc-signs the bundle, which produces a different identity every build — macOS then treats each build as a new app and resets its TCC permissions. `scripts/sign.sh` re-signs with your Apple Development certificate for a stable identity. Distribution to other machines additionally needs a "Developer ID Application" certificate and notarization (`xcrun notarytool`).
+`wails build` ad-hoc-signs the bundle, which produces a different identity every build — macOS then treats each build as a new app and resets its TCC permissions. `scripts/sign.sh` re-signs for a stable identity: it picks a **Developer ID Application** certificate when the keychain has one, otherwise an **Apple Development** one, and always signs with the hardened runtime and a secure timestamp (both prerequisites for notarization).
+
+**To run on other Macs, signing is only half of it.** A Developer ID signature with no notarization is still assessed as `source=Unnotarized Developer ID` and blocked — `scripts/notarize.sh` submits the bundle (or a DMG) to Apple's notary service, waits for the answer, staples the ticket so it also validates offline, and prints the Gatekeeper assessment. It takes credentials one of two ways:
+
+```sh
+# App Store Connect API key (also what CI uses; nothing account-password-shaped)
+NOTARY_KEY=~/.apple-signing/AuthKey_XXXXXXXXXX.p8 \
+NOTARY_KEY_ID=XXXXXXXXXX NOTARY_ISSUER=<issuer-uuid> scripts/notarize.sh
+
+# or an Apple ID + app-specific password, stored once in the keychain
+xcrun notarytool store-credentials mdv     # interactive, asks for both
+NOTARY_PROFILE=mdv scripts/notarize.sh
+```
+
+Keep the `.p8`, the certificate's private key and its `.p12` export outside the repository (`~/.apple-signing/`, mode 600) — the API key is downloadable exactly once, and a lost certificate key means issuing a new certificate.
 
 DMG (compressed, with an Applications shortcut; the bundle is staged as `MDv.app` so the Finder label matches the product name):
 
@@ -121,5 +136,7 @@ also skips `internal/...`, whose table tests use POSIX absolute paths.
 creates the GitHub release with the DMG attached. Developer ID signing and
 notarization are wired up but switched off (`ENABLE_APPLE_SIGNING: "false"`)
 because the repository has no Apple secrets — the workflow file documents the
-five secrets and the one-line flip needed to turn them on. Until then release
-DMGs are ad-hoc signed, so first launch needs a right-click → **Open**.
+six secrets and the one-line flip needed to turn them on. The steps call the
+same `scripts/sign.sh` and `scripts/notarize.sh` used locally, so CI and a
+local release cannot drift apart. Until then release DMGs are ad-hoc signed,
+so first launch needs a right-click → **Open**.

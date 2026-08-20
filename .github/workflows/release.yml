@@ -81,12 +81,17 @@ jobs:
       #        MACOS_CERTIFICATE_PWD     password for that .p12
       #        MACOS_SIGNING_IDENTITY    e.g. "Developer ID Application:
       #                                  Your Name (TEAMID)"
-      #        APPLE_ID                  Apple ID email of the account
-      #        NOTARY_PASSWORD           app-specific password for it
-      #                                  (appleid.apple.com -> App-Specific
-      #                                  Passwords), NOT the account password
-      #        TEAM_ID                   10-character Apple Developer Team ID
+      #        NOTARY_KEY_P8             contents of the App Store Connect
+      #                                  API key .p8 (App Store Connect ->
+      #                                  Users and Access -> Integrations)
+      #        NOTARY_KEY_ID             that key's Key ID
+      #        NOTARY_ISSUER             the Issuer ID shown above the key
+      #                                  list (one per team)
       #   2. Set ENABLE_APPLE_SIGNING to "true" in this workflow's `env:`.
+      #
+      # An API key is used rather than an Apple ID + app-specific password so
+      # no account password material lives in CI and the credential can be
+      # revoked on its own. `scripts/notarize.sh` accepts either.
       #
       # Notarization is asynchronous; `notarytool submit --wait` blocks until
       # Apple answers (usually a few minutes, occasionally much longer), so
@@ -101,12 +106,7 @@ jobs:
 
       - name: Sign the app bundle with Developer ID (optional)
         if: env.ENABLE_APPLE_SIGNING == 'true'
-        env:
-          SIGNING_IDENTITY: ${{ secrets.MACOS_SIGNING_IDENTITY }}
-        run: |
-          codesign --force --deep --timestamp --options runtime \
-            --sign "$SIGNING_IDENTITY" build/bin/md-view.app
-          codesign --verify --strict --verbose=2 build/bin/md-view.app
+        run: scripts/sign.sh "${{ secrets.MACOS_SIGNING_IDENTITY }}"
 
       - name: Build the DMG
         run: |
@@ -124,18 +124,17 @@ jobs:
       - name: Notarize and staple the DMG (optional)
         if: env.ENABLE_APPLE_SIGNING == 'true'
         env:
-          APPLE_ID: ${{ secrets.APPLE_ID }}
-          NOTARY_PASSWORD: ${{ secrets.NOTARY_PASSWORD }}
-          TEAM_ID: ${{ secrets.TEAM_ID }}
+          NOTARY_KEY_P8: ${{ secrets.NOTARY_KEY_P8 }}
+          NOTARY_KEY_ID: ${{ secrets.NOTARY_KEY_ID }}
+          NOTARY_ISSUER: ${{ secrets.NOTARY_ISSUER }}
         run: |
-          xcrun notarytool submit "build/bin/md-view-$VERSION.dmg" \
-            --apple-id "$APPLE_ID" \
-            --password "$NOTARY_PASSWORD" \
-            --team-id "$TEAM_ID" \
-            --wait
-          xcrun stapler staple "build/bin/md-view-$VERSION.dmg"
-          spctl --assess --type open --context context:primary-signature \
-            -vv "build/bin/md-view-$VERSION.dmg"
+          # The key must be a file for notarytool; keep it off the workspace
+          # and remove it even if the submission fails.
+          NOTARY_KEY="$(mktemp -d)/AuthKey.p8"
+          trap 'rm -f "$NOTARY_KEY"' EXIT
+          printf '%s' "$NOTARY_KEY_P8" > "$NOTARY_KEY"
+          export NOTARY_KEY
+          scripts/notarize.sh "build/bin/md-view-$VERSION.dmg"
 
       - uses: actions/upload-artifact@v4
         with:
