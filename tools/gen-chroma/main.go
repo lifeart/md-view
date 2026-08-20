@@ -17,6 +17,7 @@ import (
 	"os"
 	"strings"
 
+	"github.com/alecthomas/chroma/v2"
 	chromahtml "github.com/alecthomas/chroma/v2/formatters/html"
 	"github.com/alecthomas/chroma/v2/styles"
 )
@@ -47,18 +48,100 @@ func main() {
 	out.WriteString(light)
 	out.WriteString("\n/* Dark (chroma style: github-dark), scoped to [data-theme=\"dark\"] */\n")
 	out.WriteString(prefixSelectors(dark, `[data-theme="dark"] `))
+	out.WriteString(fallbacks(light, dark, `[data-theme="dark"] `, "github-dark"))
 	out.WriteString("\n/* Sepia (chroma style: solarized-light — warm on #f4ecd8), scoped to [data-theme=\"sepia\"] */\n")
 	out.WriteString(prefixSelectors(sepia, `[data-theme="sepia"] `))
+	out.WriteString(fallbacks(light, sepia, `[data-theme="sepia"] `, "solarized-light"))
 	out.WriteString("\n/* System theme before JS resolves it: dark palette under prefers-color-scheme,\n")
 	out.WriteString("   scoped to [data-theme=\"system\"] (inlined server-side for first paint). */\n")
 	out.WriteString("@media (prefers-color-scheme: dark) {\n")
 	out.WriteString(prefixSelectors(dark, `[data-theme="system"] `))
+	out.WriteString(fallbacks(light, dark, `[data-theme="system"] `, "github-dark"))
 	out.WriteString("}\n")
 
 	if err := os.WriteFile(outPath, out.Bytes(), 0o644); err != nil {
 		log.Fatalf("write %s: %v", outPath, err)
 	}
 	fmt.Printf("wrote %s (%d bytes)\n", outPath, out.Len())
+}
+
+// fallbacks closes the hole left by scoping: the light style is emitted on
+// bare selectors, so any token class a scoped style does not define itself
+// keeps the LIGHT colour. On the dark theme that meant punctuation and plain
+// identifiers (.p, .nx, .na, .nb, .bp — github-dark leaves them to its base
+// text colour) painted #1f2328 on a #0d1117 background: a ~1.1:1 contrast,
+// effectively invisible code.
+//
+// For every selector the light style defines and the scoped style does not,
+// emit a scoped rule carrying that style's own base text colour — which is
+// exactly what the token would have inherited had the style stood alone.
+func fallbacks(light, scoped, prefix, styleName string) string {
+	base := baseColour(styleName)
+	have := selectorSet(scoped)
+	var missing []string
+	for _, sel := range selectors(light) {
+		if !have[sel] {
+			missing = append(missing, sel)
+		}
+	}
+	if len(missing) == 0 {
+		return ""
+	}
+	var b strings.Builder
+	fmt.Fprintf(&b, "/* Base-colour fallbacks: classes %s does not define itself (see fallbacks() in tools/gen-chroma). */\n", styleName)
+	for _, sel := range missing {
+		fmt.Fprintf(&b, "%s%s { color: %s }\n", prefix, sel, base)
+	}
+	return b.String()
+}
+
+// baseColour is the style's own text colour — the colour an undefined token
+// class inherits when that style is used on its own.
+func baseColour(styleName string) string {
+	style := styles.Get(styleName)
+	if style == nil {
+		log.Fatalf("unknown chroma style %q", styleName)
+	}
+	entry := style.Get(chroma.Text)
+	if !entry.Colour.IsSet() {
+		log.Fatalf("chroma style %q has no Text colour to fall back to", styleName)
+	}
+	return entry.Colour.String()
+}
+
+// selectors lists the token-class selectors a chroma stylesheet defines, in
+// source order and without duplicates. Selector lists (`.chroma .x, .chroma
+// .y { … }`) are split into their parts.
+func selectors(css string) []string {
+	var out []string
+	seen := map[string]bool{}
+	for _, line := range strings.Split(css, "\n") {
+		brace := strings.Index(line, "{")
+		if brace < 0 {
+			continue
+		}
+		head := line[:brace]
+		if i := strings.LastIndex(head, "*/"); i >= 0 {
+			head = head[i+2:]
+		}
+		for _, part := range strings.Split(head, ",") {
+			sel := strings.TrimSpace(part)
+			if sel == "" || seen[sel] {
+				continue
+			}
+			seen[sel] = true
+			out = append(out, sel)
+		}
+	}
+	return out
+}
+
+func selectorSet(css string) map[string]bool {
+	set := make(map[string]bool)
+	for _, sel := range selectors(css) {
+		set[sel] = true
+	}
+	return set
 }
 
 // prefixSelectors prepends prefix to every selector in the simple one-rule-

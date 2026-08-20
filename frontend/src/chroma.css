@@ -154,6 +154,12 @@
 /* GenericUnderline */ [data-theme="dark"] .chroma .gl { text-decoration: underline }
 /* TextWhitespace */ [data-theme="dark"] .chroma .w { color: #6e7681 }
 
+/* Base-colour fallbacks: classes github-dark does not define itself (see fallbacks() in tools/gen-chroma). */
+[data-theme="dark"] .chroma .na { color: #e6edf3 }
+[data-theme="dark"] .chroma .nx { color: #e6edf3 }
+[data-theme="dark"] .chroma .nb { color: #e6edf3 }
+[data-theme="dark"] .chroma .bp { color: #e6edf3 }
+[data-theme="dark"] .chroma .p { color: #e6edf3 }
 
 /* Sepia (chroma style: solarized-light — warm on #f4ecd8), scoped to [data-theme="sepia"] */
 /* Background */ [data-theme="sepia"] .bg { color: #586e75; background-color: #fdf6e3; }
@@ -237,6 +243,12 @@
 /* GenericTraceback */ [data-theme="sepia"] .chroma .gt { color: #d33682 }
 /* GenericUnderline */ [data-theme="sepia"] .chroma .gl { color: #d33682 }
 
+/* Base-colour fallbacks: classes solarized-light does not define itself (see fallbacks() in tools/gen-chroma). */
+[data-theme="sepia"] .chroma .err { color: #586e75 }
+[data-theme="sepia"] .chroma .o { color: #586e75 }
+[data-theme="sepia"] .chroma .or { color: #586e75 }
+[data-theme="sepia"] .chroma .p { color: #586e75 }
+[data-theme="sepia"] .chroma .w { color: #586e75 }
 
 /* System theme before JS resolves it: dark palette under prefers-color-scheme,
    scoped to [data-theme="system"] (inlined server-side for first paint). */
@@ -320,4 +332,10 @@
 /* GenericUnderline */ [data-theme="system"] .chroma .gl { text-decoration: underline }
 /* TextWhitespace */ [data-theme="system"] .chroma .w { color: #6e7681 }
 
+/* Base-colour fallbacks: classes github-dark does not define itself (see fallbacks() in tools/gen-chroma). */
+[data-theme="system"] .chroma .na { color: #e6edf3 }
+[data-theme="system"] .chroma .nx { color: #e6edf3 }
+[data-theme="system"] .chroma .nb { color: #e6edf3 }
+[data-theme="system"] .chroma .bp { color: #e6edf3 }
+[data-theme="system"] .chroma .p { color: #e6edf3 }
 }

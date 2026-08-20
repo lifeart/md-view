@@ -14,6 +14,10 @@ Somewhere in the last few years, markdown stopped being a programmer thing. Meet
 
 MDv is the missing viewer: a native macOS app that opens a rendered, readable markdown document faster than you can finish the double-click, and gets out of the way.
 
+![A markdown document open in MDv, showing an H1, body prose, a GFM table and a syntax-highlighted Go code block on a white background with no visible window chrome](docs/screenshots/reading-light.png)
+
+*Nothing but the document. The toolbar auto-hides until you reach for it.*
+
 - **Fast, measured:** ~0.2 s from double-click to a rendered window, cold; well under 150 ms when the resident instance is warm. Rendering happens in Go before the webview paints — the first paint *is* the finished document.
 - **Navigable:** relative links to other markdown files open in-app with back/forward (`Cmd+[` / `Cmd+]`), scroll restoration, and anchor support; `http(s)` links open in your browser.
 - **Copy-friendly:** selecting and copying yields plain text; links offer "Copy Link Address"; code blocks have a hover copy button.
@@ -22,6 +26,16 @@ MDv is the missing viewer: a native macOS app that opens a rendered, readable ma
 - **Small:** Go + Wails v2 + the system WKWebView. ~13 MB binary, no bundled browser, no JS framework.
 
 See [ARCHITECTURE.md](ARCHITECTURE.md) for the full design — including where a cold launch actually spends its time and why the window presentation is choreographed the way it is.
+
+## Appearance
+
+Theme, font, size and column width live behind the `Aa` button in the auto-hiding toolbar, and persist between launches. Changing one flips CSS variables — nothing re-renders, including the code highlighting.
+
+![The same document in the dark theme, scrolled to a syntax-highlighted Go function and a blockquote, on a near-black background](docs/screenshots/reading-dark.png)
+
+![The toolbar slid into view with the appearance menu open, showing the theme, font, size and width controls](docs/screenshots/appearance-menu.png)
+
+All three screenshots are the app itself rendering [`docs/screenshots/demo.md`](docs/screenshots/demo.md).
 
 ## Install
 
@@ -67,7 +81,7 @@ scripts/e2e-warm-open.sh   # after wails build: drives the real app through clos
                            # one committed — the OS un-hide vs. doc:open race has no unit-test seam
 ```
 
-Note: file associations only work for the built, installed bundle — under `wails dev`, open files via `Cmd+O`, drag-and-drop, or a CLI argument.
+Note: file associations only work for the built, installed bundle — under `wails dev`, open files via `Cmd+O`, drag-and-drop, or a CLI argument (`wails dev -appargs /path/to/doc.md`). Quit any installed MDv before starting a dev session: the single-instance lock makes the second launch hand its arguments to the resident instance and exit, which ends `wails dev` immediately.
 
 ## Build & package
 
@@ -133,10 +147,25 @@ also skips `internal/...`, whose table tests use POSIX absolute paths.
 
 **`release.yml`** — on a `v*` tag. Builds on macOS, packages
 `build/bin/md-view-<version>.dmg` (app + `/Applications` symlink, UDZO), and
-creates the GitHub release with the DMG attached. Developer ID signing and
-notarization are wired up but switched off (`ENABLE_APPLE_SIGNING: "false"`)
-because the repository has no Apple secrets — the workflow file documents the
-six secrets and the one-line flip needed to turn them on. The steps call the
-same `scripts/sign.sh` and `scripts/notarize.sh` used locally, so CI and a
-local release cannot drift apart. Until then release DMGs are ad-hoc signed,
-so first launch needs a right-click → **Open**.
+creates the GitHub release with the DMG attached.
+
+**Signing turns itself on.** There is no switch to flip: a first step checks
+whether the repository has the Apple secrets and sets an output the signing
+steps key off. Add these under *Settings → Secrets and variables → Actions*
+and the next tag produces a Developer ID-signed, notarized DMG whose release
+notes say so; leave them out and the same tag produces an ad-hoc signed one
+(right-click → **Open** on first launch) plus a `::warning::` naming the
+secrets that were missing — never a failed release.
+
+| Secret | What it is |
+|---|---|
+| `MACOS_CERTIFICATE` | base64 of a "Developer ID Application" `.p12` export (`base64 -i cert.p12 \| pbcopy`) |
+| `MACOS_CERTIFICATE_PWD` | password for that `.p12` |
+| `MACOS_SIGNING_IDENTITY` | optional — `scripts/sign.sh` finds the imported certificate on its own |
+| `NOTARY_KEY_P8` | contents of the App Store Connect API key `.p8` |
+| `NOTARY_KEY_ID` | that key's Key ID |
+| `NOTARY_ISSUER` | the Issuer ID shown above the key list |
+
+The signing and notarization steps call the same `scripts/sign.sh` and
+`scripts/notarize.sh` used locally, so CI and a hand-made release cannot
+drift apart.

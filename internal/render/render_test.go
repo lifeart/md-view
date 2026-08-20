@@ -272,3 +272,37 @@ func TestRewriteAssetURL(t *testing.T) {
 		}
 	}
 }
+
+// TestAltTextSurvivesPunctuation: alt text and titles carrying ordinary
+// punctuation must reach the webview. bluemonday's UGCPolicy matches these
+// attributes against its Paragraph pattern, which rejects colons and em
+// dashes and then drops the whole attribute — silently removing exactly the
+// caption a screen reader reads out (see buildPolicy).
+func TestAltTextSurvivesPunctuation(t *testing.T) {
+	r := New()
+	src := []byte("# Doc\n\n" +
+		`![MDv: a document — open](img/shot.png "Screenshot: the reading view")` + "\n\n" +
+		`[link](https://example.com "Docs: the manual")` + "\n")
+	doc, err := r.Render("/docs/a.md", src)
+	if err != nil {
+		t.Fatalf("Render: %v", err)
+	}
+	for _, want := range []string{
+		`alt="MDv: a document — open"`,
+		`title="Screenshot: the reading view"`,
+		`title="Docs: the manual"`,
+	} {
+		if !strings.Contains(doc.HTML, want) {
+			t.Errorf("sanitizer dropped %s from:\n%s", want, doc.HTML)
+		}
+	}
+	// The widened pattern must still not admit markup into the attribute.
+	hostile := []byte("# Doc\n\n" + `<img src="img/x.png" alt="a<script>b">` + "\n")
+	hostileDoc, err := r.Render("/docs/a.md", hostile)
+	if err != nil {
+		t.Fatalf("Render hostile: %v", err)
+	}
+	if strings.Contains(hostileDoc.HTML, "<script") {
+		t.Errorf("script tag survived sanitization:\n%s", hostileDoc.HTML)
+	}
+}

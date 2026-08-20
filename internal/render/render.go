@@ -83,6 +83,16 @@ func buildPolicy() *bluemonday.Policy {
 	// GFM task-list checkboxes.
 	p.AllowAttrs("type").Matching(regexp.MustCompile(`^checkbox$`)).OnElements("input")
 	p.AllowAttrs("checked", "disabled").Matching(regexp.MustCompile(`^(|checked|disabled)$`)).OnElements("input")
+	// Image alt text and link/image titles: UGCPolicy allows these attributes
+	// but matches them against bluemonday.Paragraph, which rejects colons and
+	// em dashes — so `![MDv: the viewer](x.png)` silently lost its alt text
+	// entirely, which is exactly the caption a screen reader needs. Widen the
+	// pattern to any single-line text without angle brackets; bluemonday
+	// HTML-escapes attribute values on output, so the restriction was never
+	// what made them safe.
+	altText := regexp.MustCompile(`^[^<>\r\n]*$`)
+	p.AllowAttrs("alt").Matching(altText).OnElements("img")
+	p.AllowAttrs("title").Matching(altText).OnElements("img", "a")
 	// UGCPolicy already allows img[src] with relative URLs, which covers the
 	// rewritten /doc-asset/ routes, and a[href], tables, blockquotes, del, etc.
 	return p
