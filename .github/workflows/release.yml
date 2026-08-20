@@ -121,17 +121,26 @@ jobs:
         if: steps.signing.outputs.enabled == 'true'
         run: scripts/sign.sh "${{ secrets.MACOS_SIGNING_IDENTITY }}"
 
+      # The volume is named MDv so the Finder window title matches the product
+      # name, and the bundle is staged under that name for the same reason.
       - name: Build the DMG
         run: |
           STAGE="$(mktemp -d)"
           cp -R build/bin/md-view.app "$STAGE/MDv.app"
           ln -s /Applications "$STAGE/Applications"
           hdiutil create \
-            -volname "md-view" \
+            -volname "MDv" \
             -srcfolder "$STAGE" \
             -ov -format UDZO \
             "build/bin/md-view-$VERSION.dmg"
           hdiutil verify "build/bin/md-view-$VERSION.dmg"
+
+      # A freshly created disk image carries no signature of its own; sign it
+      # so the file people download is verifiable, and so notarization submits
+      # one signed unit rather than an unsigned wrapper.
+      - name: Sign the DMG with Developer ID
+        if: steps.signing.outputs.enabled == 'true'
+        run: scripts/sign.sh "${{ secrets.MACOS_SIGNING_IDENTITY }}" "build/bin/md-view-$VERSION.dmg"
 
       # See the comment block above for the secrets this needs.
       - name: Notarize and staple the DMG

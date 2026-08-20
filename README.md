@@ -91,6 +91,10 @@ scripts/sign.sh            # re-sign with a stable identity (Developer ID if you
 scripts/notarize.sh        # Developer ID only: notarize + staple, for other Macs
 ```
 
+Note that `wails dev` overwrites `build/bin/md-view.app` with a development
+build — run it *before* signing, never between signing and notarizing, or the
+ticket Apple issues will not match the bundle on disk.
+
 `wails build` ad-hoc-signs the bundle, which produces a different identity every build — macOS then treats each build as a new app and resets its TCC permissions. `scripts/sign.sh` re-signs for a stable identity: it picks a **Developer ID Application** certificate when the keychain has one, otherwise an **Apple Development** one, and always signs with the hardened runtime and a secure timestamp (both prerequisites for notarization).
 
 **To run on other Macs, signing is only half of it.** A Developer ID signature with no notarization is still assessed as `source=Unnotarized Developer ID` and blocked — `scripts/notarize.sh` submits the bundle (or a DMG) to Apple's notary service, waits for the answer, staples the ticket so it also validates offline, and prints the Gatekeeper assessment. It takes credentials one of two ways:

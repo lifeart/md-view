@@ -4,27 +4,39 @@
 # Macs — see scripts/notarize.sh for the second half), otherwise an
 # "Apple Development" one, which is enough locally and keeps TCC permissions
 # across rebuilds (wails build only ad-hoc-signs, which changes every build).
-# Usage: scripts/sign.sh ["identity name or SHA-1"] [path/to/md-view.app]
+# Also signs a .dmg when given one: the disk image people actually download
+# should carry its own verifiable signature, and notarization submits it as a
+# single signed unit.
+# Usage: scripts/sign.sh ["identity name or SHA-1"] [path/to/md-view.app | path/to/x.dmg]
 set -e
 
-APP="${2:-build/bin/md-view.app}"
+TARGET="${2:-build/bin/md-view.app}"
 IDENTITY="${1:-}"
 if [ -z "$IDENTITY" ]; then
   IDENTITY=$(security find-identity -v -p codesigning | awk -F'"' '/Developer ID Application/ {print $2; exit}')
   [ -n "$IDENTITY" ] || IDENTITY=$(security find-identity -v -p codesigning | awk -F'"' '/Apple Development/ {print $2; exit}')
   [ -n "$IDENTITY" ] || { echo "error: no signing identity found; pass one explicitly"; exit 1; }
 fi
-[ -d "$APP" ] || { echo "error: $APP not found — run wails build first"; exit 1; }
+[ -e "$TARGET" ] || { echo "error: $TARGET not found — run wails build first"; exit 1; }
 
-# --timestamp and --options runtime (hardened runtime) are both prerequisites
-# for notarization; they cost nothing on a local-only signature.
-codesign --force --options runtime --timestamp --sign "$IDENTITY" "$APP"
-codesign --verify --deep --strict "$APP"
-echo "signed '$APP' as: $IDENTITY"
+# --timestamp is a notarization prerequisite everywhere. --options runtime
+# (hardened runtime) applies to executable code only — a disk image carries no
+# code of its own, and codesign rejects the flag on one.
+case "$TARGET" in
+*.dmg)
+  codesign --force --timestamp --sign "$IDENTITY" "$TARGET"
+  codesign --verify --strict "$TARGET"
+  ;;
+*)
+  codesign --force --options runtime --timestamp --sign "$IDENTITY" "$TARGET"
+  codesign --verify --deep --strict "$TARGET"
+  ;;
+esac
+echo "signed '$TARGET' as: $IDENTITY"
 
 case "$IDENTITY" in
 Developer\ ID\ Application*)
-  echo "next: scripts/notarize.sh — Gatekeeper on other Macs needs the app"
+  echo "next: scripts/notarize.sh — Gatekeeper on other Macs needs this"
   echo "notarized and stapled, not just Developer ID signed."
   ;;
 *)
