@@ -62,6 +62,9 @@ Requires Go 1.25+, Node 22+, and the Wails v2 CLI (`go install github.com/wailsa
 wails dev                  # live-reload dev session (also serves the UI to a browser)
 go test ./...              # Go tests: render pipeline, links/scope, settings, shell inlining
 cd frontend && npx tsc --noEmit   # frontend type check
+scripts/e2e-warm-open.sh   # after wails build: drives the real app through close/re-open rounds
+                           # and checks (via MDVIEW_TRACE) that the document just opened is the
+                           # one committed — the OS un-hide vs. doc:open race has no unit-test seam
 ```
 
 Note: file associations only work for the built, installed bundle — under `wails dev`, open files via `Cmd+O`, drag-and-drop, or a CLI argument.

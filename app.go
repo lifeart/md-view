@@ -190,10 +190,12 @@ func (a *App) openPath(path string) {
 	if !ready || ctx == nil {
 		a.pending = append(a.pending, abs)
 		a.mu.Unlock()
+		tracef("openPath buffered %s", abs)
 		return
 	}
 	a.windowShown = true
 	a.mu.Unlock()
+	tracef("openPath emit doc:open %s", abs)
 	// Warm delivery into a running instance: the window may be hidden (closed
 	// with HideWindowOnClose, or a --hidden prewarm launch). The FRONTEND
 	// shows it after committing the new document — showing from here would
@@ -270,6 +272,7 @@ func (a *App) PresentWindow() {
 	ctx := a.ctx
 	a.windowShown = true
 	a.mu.Unlock()
+	tracef("PresentWindow")
 	presentWindow(ctx)
 }
 
@@ -277,7 +280,16 @@ func (a *App) PresentWindow() {
 // hidden, window closed-to-hidden or miniaturized) as opposed to merely
 // occluded. The frontend uses it to clear the document on real hides only.
 func (a *App) IsWindowHidden() bool {
-	return windowHidden()
+	hidden := windowHidden()
+	tracef("IsWindowHidden -> %v", hidden)
+	return hidden
+}
+
+// Trace appends a frontend milestone to the MDVIEW_TRACE file (no-op when
+// tracing is off). The frontend has no stderr of its own, so this is the only
+// way to line its steps up against the Go-side launch trace.
+func (a *App) Trace(msg string) {
+	tracef("fe: %s", msg)
 }
 
 // RenderDocument renders a markdown file. The path must already be inside the
@@ -295,6 +307,7 @@ func (a *App) RenderDocument(path string) (render.Doc, error) {
 	if err != nil {
 		return render.Doc{}, err
 	}
+	tracef("RenderDocument %s (%d bytes)", resolved, len(doc.HTML))
 	// Track the displayed document so a webview reload can restore it.
 	a.mu.Lock()
 	a.currentDoc = doc.Path

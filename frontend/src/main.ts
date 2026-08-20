@@ -12,6 +12,7 @@ import {
   RenderDocument,
   ResolveLink,
   SetSettings,
+  Trace,
 } from '../wailsjs/go/main/App';
 import { ClipboardSetText, EventsOn, WindowSetTitle } from '../wailsjs/runtime/runtime';
 import { settings } from '../wailsjs/go/models';
@@ -24,6 +25,13 @@ function el<T extends HTMLElement>(id: string): T {
     throw new Error(`missing element #${id}`);
   }
   return e as T;
+}
+
+// trace appends a frontend milestone to the MDVIEW_TRACE file (no-op when
+// tracing is off); see trace.go. Lets the frontend's steps be lined up against
+// the Go-side launch trace when diagnosing presentation issues.
+function trace(msg: string): void {
+  void Trace(msg);
 }
 
 function errMsg(err: unknown): string {
@@ -198,8 +206,17 @@ function scrollToAnchor(anchor: string, smooth: boolean): void {
 let navSeq = 0;
 
 // Content was cleared while the window was hidden (see the visibilitychange
-// handler) and must be restored on the next show.
+// handler) and must be restored on the next show. Reset where the content is
+// actually filled again (the commit in renderInto), so the flag always
+// mirrors the DOM.
 let contentCleared = false;
+
+// Number of renderInto calls in flight. The restore-on-show path yields to a
+// render that is already running (a doc:open that arrived with the show):
+// a restore started then would take a newer navigation token than the open
+// and put the previously displayed document back on screen instead of the
+// one just opened (the open's render would be dropped as stale).
+let rendersInFlight = 0;
 
 // Same-document view transition: the engine snapshots the old state, applies
 // the DOM update, and crossfades (50 ms, see theme.css) — an atomic,
@@ -219,24 +236,40 @@ function commitWithTransition(commit: () => void): Promise<void> {
 }
 
 async function renderInto(path: string, token: number): Promise<boolean> {
+  rendersInFlight++;
   try {
+    trace(`renderInto ${path} (token ${token}, visibility ${document.visibilityState})`);
     const doc = await RenderDocument(path);
     if (token !== navSeq) {
       // A newer navigation started while this render was in flight. Dropping
       // the stale result silently is intentional (not error swallowing): the
       // render succeeded but lost the race, and committing it would clobber
       // the newer document.
+      trace(`renderInto dropped stale ${doc.path} (token ${token}, latest ${navSeq})`);
       return false;
     }
+    let committed = false;
     await commitWithTransition(() => {
+      // The view transition runs this at the next rendering opportunity, not
+      // synchronously: a navigation that started in between (e.g. a doc:open
+      // landing while a restore-on-show waits for its frame) must win, so
+      // re-check the token here — the check above is not enough.
+      if (token !== navSeq) return;
+      committed = true;
       content.innerHTML = doc.html;
+      contentCleared = false;
       currentPath = doc.path;
       docTitle.textContent = doc.title;
       docTitle.title = doc.path;
       WindowSetTitle(`${doc.title} — MDv`);
       enhanceCodeBlocks();
     });
-    return true;
+    trace(
+      committed
+        ? `renderInto committed ${doc.path} (token ${token})`
+        : `renderInto dropped stale ${doc.path} at commit (token ${token}, latest ${navSeq})`,
+    );
+    return committed;
   } catch (err) {
     if (token === navSeq) {
       showError(`Failed to open ${path}: ${errMsg(err)}`);
@@ -244,6 +277,49 @@ async function renderInto(path: string, token: number): Promise<boolean> {
     // Stale failures are dropped: the error belongs to an abandoned
     // navigation and a newer one has already taken over the UI.
     return false;
+  } finally {
+    rendersInFlight--;
+  }
+}
+
+// Grace between the window becoming visible and a restore-on-show. macOS
+// un-hides the app a few ms *before* it delivers a file open to it (8–17 ms
+// measured), so a 'visible' is often the prelude to a doc:open; a restore
+// started at once would flash the previous document for a frame or two
+// before the new one lands. After the grace, an open that arrived meanwhile
+// has its render in flight (or committed) and the restore yields to it; a
+// plain un-hide (Dock click, deminiaturize) restores once the grace is over.
+const RESTORE_GRACE_MS = 50;
+let restoreTimer: number | undefined;
+
+function scheduleRestore(): void {
+  cancelScheduledRestore();
+  restoreTimer = window.setTimeout(() => {
+    restoreTimer = undefined;
+    void restoreClearedContent();
+  }, RESTORE_GRACE_MS);
+}
+
+function cancelScheduledRestore(): void {
+  if (restoreTimer !== undefined) {
+    window.clearTimeout(restoreTimer);
+    restoreTimer = undefined;
+  }
+}
+
+// restoreClearedContent puts the current document back after a clear-on-hide
+// (see the visibilitychange handler) — unless a render is already in flight,
+// which will fill the content itself and must keep the latest navigation
+// token. Scroll is restored from the history entry the clear captured.
+async function restoreClearedContent(): Promise<void> {
+  if (!contentCleared || !currentPath || rendersInFlight > 0) return;
+  trace(`restoring cleared content ${currentPath}`);
+  const token = ++navSeq;
+  const ok = await renderInto(currentPath, token);
+  if (!ok) return;
+  const entry = history[historyIndex];
+  if (entry && entry.path === currentPath) {
+    window.scrollTo(0, entry.scrollY);
   }
 }
 
@@ -499,6 +575,7 @@ async function openViaDialog(): Promise<void> {
 async function init(): Promise<void> {
   // Subscribe before Ready() so no buffered open events are lost.
   EventsOn('doc:open', (path: string) => {
+    trace(`doc:open ${path} (visibility ${document.visibilityState})`);
     void (async () => {
       // Commit the new document (or the error banner) first, then present:
       // PresentWindow gates the show natively so a hidden window's suspended
@@ -506,7 +583,11 @@ async function init(): Promise<void> {
       // reveal is a 50 ms native alpha fade. Visible-window swaps crossfade
       // via the view transition inside renderInto.
       await navigateTo(path);
-      contentCleared = false;
+      // A failed open must not present the cleared shell: put the previous
+      // document back (a no-op when the open committed or a newer render is
+      // in flight), as a visible-window failure would have kept it.
+      await restoreClearedContent();
+      trace(`doc:open navigated ${path}; presenting`);
       void PresentWindow();
     })();
   });
@@ -517,7 +598,9 @@ async function init(): Promise<void> {
   // released. Mere occlusion by another window also reports 'hidden' — the
   // native IsWindowHidden check keeps the content in that case.
   document.addEventListener('visibilitychange', () => {
+    trace(`visibilitychange ${document.visibilityState} (contentCleared ${contentCleared})`);
     if (document.visibilityState === 'hidden') {
+      cancelScheduledRestore();
       void (async () => {
         const seqAtHide = navSeq;
         let hidden = false;
@@ -533,21 +616,14 @@ async function init(): Promise<void> {
           captureScroll();
           content.innerHTML = '';
           contentCleared = true;
+          trace('content cleared on hide');
         }
       })();
-    } else if (contentCleared && currentPath) {
-      // Shown again without a new document (Dock unhide, deminiaturize):
-      // restore the current one with the same fade.
-      contentCleared = false;
-      void (async () => {
-        const token = ++navSeq;
-        const ok = await renderInto(currentPath, token);
-        if (!ok) return;
-        const entry = history[historyIndex];
-        if (entry && entry.path === currentPath) {
-          window.scrollTo(0, entry.scrollY);
-        }
-      })();
+    } else {
+      // Shown again: restore the current document — after a short grace, in
+      // case this show is macOS un-hiding the app for a file open that is
+      // about to arrive (see RESTORE_GRACE_MS).
+      scheduleRestore();
     }
   });
   EventsOn('app:error', (msg: string) => {
