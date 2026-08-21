@@ -158,6 +158,14 @@ jobs:
           export NOTARY_KEY
           scripts/notarize.sh "build/bin/md-view-$VERSION.dmg"
 
+      # A second copy under a version-free name. GitHub redirects
+      # /releases/latest/download/MDv.dmg to whichever release is newest, so
+      # the download link on the site is a plain <a href> — no JavaScript, no
+      # api.github.com call, nothing to rate-limit. Copied AFTER stapling so
+      # it carries the notarization ticket too.
+      - name: Add a stable-named copy for latest-download links
+        run: cp "build/bin/md-view-$VERSION.dmg" build/bin/MDv.dmg
+
       - uses: actions/upload-artifact@v4
         with:
           name: md-view-${{ env.VERSION }}-macos-arm64-dmg
@@ -170,7 +178,9 @@ jobs:
         if: steps.signing.outputs.enabled == 'true'
         uses: softprops/action-gh-release@v2
         with:
-          files: build/bin/md-view-${{ env.VERSION }}.dmg
+          files: |
+            build/bin/md-view-${{ env.VERSION }}.dmg
+            build/bin/MDv.dmg
           generate_release_notes: true
           fail_on_unmatched_files: true
           body: |
@@ -186,7 +196,9 @@ jobs:
         if: steps.signing.outputs.enabled != 'true'
         uses: softprops/action-gh-release@v2
         with:
-          files: build/bin/md-view-${{ env.VERSION }}.dmg
+          files: |
+            build/bin/md-view-${{ env.VERSION }}.dmg
+            build/bin/MDv.dmg
           generate_release_notes: true
           fail_on_unmatched_files: true
           body: |
