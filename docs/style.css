@@ -1,0 +1,829 @@
+/* MDv landing page.
+   ------------------------------------------------------------------
+   The token blocks and the `article` document rules below are copied
+   verbatim from frontend/src/theme.css — the app's real stylesheet, which
+   is not published to GitHub Pages, so it cannot be @import-ed. Keeping the
+   selectors byte-identical (in particular the bare `article pre`, which
+   chroma's `.chroma` rule deliberately outranks) is what makes the demo
+   frame render exactly like the app.
+
+   Consequence: `<article>` is used ONLY inside the demo frame on this page.
+   Landing-page chrome uses other elements so it never picks up doc styling.
+
+   Two things intentionally differ from theme.css:
+     - `--wails-drop-target` is dropped (Wails-only).
+     - `[data-theme="light"]` is added. In the app the light theme is the
+       bare `:root` default and `<html>` is the only themed element, so it
+       needs no block; here the demo frame is a nested themed element that
+       must be able to override an inherited dark page.
+   ------------------------------------------------------------------ */
+
+/* ========== app tokens (theme.css) ========== */
+
+:root {
+  --font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans", Helvetica, Arial, sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
+  --font-size: 16px;
+  --content-width: 72ch;
+
+  /* light theme (default) */
+  --bg: #ffffff;
+  --fg: #1f2328;
+  --fg-muted: #59636e;
+  --link: #0969da;
+  --border: #d1d9e0;
+  --code-bg: #f6f8fa;
+  --toolbar-bg: rgba(255, 255, 255, 0.92);
+  --menu-bg: #ffffff;
+  --accent: #0969da;
+  --error-bg: #fff1f0;
+  --error-fg: #a40e26;
+  --error-border: #ffa8a8;
+  --kbd-bg: #f6f8fa;
+  --shadow: 0 8px 24px rgba(31, 35, 40, 0.15);
+
+  color-scheme: light;
+}
+
+/* Not in theme.css — see the header note. Restates the light values so an
+   explicit light choice on the nested demo frame beats an inherited theme. */
+[data-theme="light"] {
+  --bg: #ffffff;
+  --fg: #1f2328;
+  --fg-muted: #59636e;
+  --link: #0969da;
+  --border: #d1d9e0;
+  --code-bg: #f6f8fa;
+  --toolbar-bg: rgba(255, 255, 255, 0.92);
+  --menu-bg: #ffffff;
+  --accent: #0969da;
+  --error-bg: #fff1f0;
+  --error-fg: #a40e26;
+  --error-border: #ffa8a8;
+  --kbd-bg: #f6f8fa;
+  --shadow: 0 8px 24px rgba(31, 35, 40, 0.15);
+  color-scheme: light;
+}
+
+[data-theme="dark"] {
+  --bg: #0d1117;
+  --fg: #e6edf3;
+  --fg-muted: #9198a1;
+  --link: #4493f8;
+  --border: #3d444d;
+  --code-bg: #161b22;
+  --toolbar-bg: rgba(13, 17, 23, 0.92);
+  --menu-bg: #161b22;
+  --accent: #4493f8;
+  --error-bg: #3c1618;
+  --error-fg: #ffb3ba;
+  --error-border: #8e1519;
+  --kbd-bg: #161b22;
+  --shadow: 0 8px 24px rgba(1, 4, 9, 0.8);
+  color-scheme: dark;
+}
+
+/* Theme "system", resolved by the OS — the same rule the app ships, and the
+   scope chroma.css uses for its fourth palette. */
+@media (prefers-color-scheme: dark) {
+  [data-theme="system"] {
+    --bg: #0d1117;
+    --fg: #e6edf3;
+    --fg-muted: #9198a1;
+    --link: #4493f8;
+    --border: #3d444d;
+    --code-bg: #161b22;
+    --toolbar-bg: rgba(13, 17, 23, 0.92);
+    --menu-bg: #161b22;
+    --accent: #4493f8;
+    --error-bg: #3c1618;
+    --error-fg: #ffb3ba;
+    --error-border: #8e1519;
+    --kbd-bg: #161b22;
+    --shadow: 0 8px 24px rgba(1, 4, 9, 0.8);
+    color-scheme: dark;
+  }
+}
+
+[data-theme="sepia"] {
+  --bg: #f4ecd8;
+  --fg: #433422;
+  --fg-muted: #7d6f58;
+  --link: #205e9e;
+  --border: #d8cbaa;
+  --code-bg: #ece1c6;
+  --toolbar-bg: rgba(244, 236, 216, 0.92);
+  --menu-bg: #f9f3e3;
+  --accent: #8a6d3b;
+  --error-bg: #f7dcd2;
+  --error-fg: #8c2f1b;
+  --error-border: #dfa08c;
+  --kbd-bg: #ece1c6;
+  --shadow: 0 8px 24px rgba(67, 52, 34, 0.25);
+  color-scheme: light;
+}
+
+/* ========== page theme ==========
+   The page carries its own attribute (`data-page-theme` on <html>) so that
+   chroma.css's `[data-theme="…"] .chroma` selectors can only ever match the
+   demo frame — a page-level `data-theme` would leak its code palette into a
+   frame set to a different theme. Default is follow-the-OS, like the app. */
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-page-theme="light"]) {
+    --bg: #0d1117;
+    --fg: #e6edf3;
+    --fg-muted: #9198a1;
+    --link: #4493f8;
+    --border: #3d444d;
+    --code-bg: #161b22;
+    --toolbar-bg: rgba(13, 17, 23, 0.92);
+    --menu-bg: #161b22;
+    --accent: #4493f8;
+    --error-bg: #3c1618;
+    --error-fg: #ffb3ba;
+    --error-border: #8e1519;
+    --kbd-bg: #161b22;
+    --shadow: 0 8px 24px rgba(1, 4, 9, 0.8);
+    color-scheme: dark;
+  }
+}
+
+:root[data-page-theme="dark"] {
+  --bg: #0d1117;
+  --fg: #e6edf3;
+  --fg-muted: #9198a1;
+  --link: #4493f8;
+  --border: #3d444d;
+  --code-bg: #161b22;
+  --toolbar-bg: rgba(13, 17, 23, 0.92);
+  --menu-bg: #161b22;
+  --accent: #4493f8;
+  --error-bg: #3c1618;
+  --error-fg: #ffb3ba;
+  --error-border: #8e1519;
+  --kbd-bg: #161b22;
+  --shadow: 0 8px 24px rgba(1, 4, 9, 0.8);
+  color-scheme: dark;
+}
+
+/* ========== base (theme.css) ========== */
+
+* {
+  box-sizing: border-box;
+}
+
+html, body {
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  background: var(--bg);
+  color: var(--fg);
+  font-family: var(--font-family);
+  font-size: var(--font-size);
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+}
+
+a {
+  color: var(--link);
+  text-decoration: none;
+}
+
+a:hover {
+  text-decoration: underline;
+}
+
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+img {
+  max-width: 100%;
+  height: auto;
+}
+
+/* Controls that do nothing without JS are not shown without JS. The `js`
+   class is set by the inline head script; the :not() keeps this above the
+   later `display: inline-flex` rules for the same elements. */
+html:not(.js) .js-only {
+  display: none;
+}
+
+/* ========== page layout ========== */
+
+.wrap {
+  width: 100%;
+  max-width: 62rem;
+  margin: 0 auto;
+  padding: 0 20px;
+}
+
+.skip-link {
+  position: absolute;
+  left: -9999px;
+}
+
+.skip-link:focus {
+  left: 12px;
+  top: 12px;
+  z-index: 50;
+  background: var(--menu-bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 8px 12px;
+}
+
+/* ---------- masthead ---------- */
+
+.masthead {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  background: var(--toolbar-bg);
+  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(8px);
+  border-bottom: 1px solid var(--border);
+}
+
+.masthead .wrap {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  height: 52px;
+}
+
+.wordmark {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 8px;
+  font-weight: 600;
+  font-size: 15px;
+  color: var(--fg);
+  margin-right: auto;
+  white-space: nowrap;
+}
+
+.wordmark:hover {
+  text-decoration: none;
+}
+
+.wordmark .tag {
+  font-weight: 400;
+  font-size: 12px;
+  color: var(--fg-muted);
+}
+
+.masthead nav {
+  display: flex;
+  gap: 14px;
+  font-size: 13px;
+}
+
+.masthead nav a {
+  color: var(--fg-muted);
+}
+
+.masthead nav a:hover {
+  color: var(--fg);
+}
+
+.theme-picker {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: var(--fg-muted);
+}
+
+select.control {
+  font: inherit;
+  font-size: 13px;
+  color: var(--fg);
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 3px 6px;
+  accent-color: var(--accent);
+}
+
+/* The masthead sheds its optional pieces before it wraps. */
+@media (max-width: 760px) {
+  .masthead .hide-sm {
+    display: none;
+  }
+}
+
+/* ---------- sections ---------- */
+
+section {
+  padding: 56px 0;
+  border-top: 1px solid var(--border);
+}
+
+section:first-of-type {
+  border-top: none;
+}
+
+h1, h2, h3 {
+  line-height: 1.25;
+  font-weight: 600;
+  margin: 0 0 0.5em;
+  letter-spacing: -0.01em;
+}
+
+h2 {
+  font-size: 1.5rem;
+}
+
+h3 {
+  font-size: 1rem;
+}
+
+/* One measure for running text; the flex rows opt out below. */
+.wrap > p {
+  max-width: 62ch;
+}
+
+p {
+  margin: 0 0 1em;
+}
+
+.muted {
+  color: var(--fg-muted);
+}
+
+.small {
+  font-size: 0.8125rem;
+}
+
+/* ---------- hero ---------- */
+
+.hero {
+  padding: 64px 0 48px;
+}
+
+.hero h1 {
+  font-size: clamp(2rem, 6vw, 3rem);
+  max-width: 18ch;
+  margin-bottom: 0.4em;
+}
+
+.hero .lede {
+  font-size: clamp(1rem, 2.4vw, 1.1875rem);
+  color: var(--fg-muted);
+  margin-bottom: 1.75em;
+}
+
+/* ---------- download ---------- */
+
+.wrap > p.download {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 14px 16px;
+  max-width: none;
+}
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font: inherit;
+  font-size: 15px;
+  font-weight: 600;
+  padding: 10px 20px;
+  border-radius: 8px;
+  border: 1px solid transparent;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.btn:hover {
+  text-decoration: none;
+}
+
+/* Page-only token. The app's --accent is tuned for link text on its own
+   background; as a filled button fill it needs a darker blue in the dark
+   theme to keep white label text at =4.5:1 (#4493f8 + white is only 3.1:1). */
+.btn-primary {
+  background: var(--btn-bg, var(--accent));
+  border-color: var(--btn-bg, var(--accent));
+  color: #ffffff;
+}
+
+:root[data-page-theme="dark"] .btn-primary {
+  --btn-bg: #1f6feb;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-page-theme="light"]) .btn-primary {
+    --btn-bg: #1f6feb;
+  }
+}
+
+.btn-primary:hover {
+  filter: brightness(1.08);
+}
+
+.btn-secondary {
+  background: var(--bg);
+  border-color: var(--border);
+  color: var(--fg);
+}
+
+.btn-secondary:hover {
+  background: var(--code-bg);
+}
+
+.release-meta {
+  font-size: 13px;
+  color: var(--fg-muted);
+  line-height: 1.45;
+}
+
+.release-meta strong {
+  color: var(--fg);
+  font-weight: 600;
+}
+
+.wrap > p.platform-note {
+  margin-top: 18px;
+  font-size: 13px;
+  color: var(--fg-muted);
+  max-width: 62ch;
+}
+
+/* ---------- figures ---------- */
+
+figure {
+  margin: 0 0 8px;
+}
+
+figure img {
+  display: block;
+  width: 100%;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  box-shadow: var(--shadow);
+}
+
+figcaption {
+  margin-top: 10px;
+  font-size: 13px;
+  color: var(--fg-muted);
+}
+
+.shots {
+  display: grid;
+  gap: 36px;
+  grid-template-columns: 1fr;
+}
+
+@media (min-width: 800px) {
+  .shots {
+    grid-template-columns: 1fr 1fr;
+    align-items: start;
+  }
+}
+
+/* ---------- feature list ---------- */
+
+.features {
+  display: grid;
+  gap: 4px 32px;
+  grid-template-columns: 1fr;
+  list-style: none;
+  padding: 0;
+  margin: 28px 0 0;
+}
+
+@media (min-width: 700px) {
+  .features {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+.features li {
+  padding: 14px 0;
+  border-top: 1px solid var(--border);
+}
+
+.features h3 {
+  margin-bottom: 0.25em;
+}
+
+.features p {
+  margin: 0;
+  color: var(--fg-muted);
+  font-size: 0.9375rem;
+}
+
+/* ---------- inline code / kbd on the landing chrome ---------- */
+
+.code,
+.default-app code {
+  font-family: var(--font-mono);
+  font-size: 0.875em;
+  background: var(--code-bg);
+  padding: 0.2em 0.4em;
+  border-radius: 6px;
+}
+
+.kbd {
+  display: inline-block;
+  padding: 2px 6px;
+  font-family: var(--font-mono);
+  font-size: 0.85em;
+  background: var(--kbd-bg);
+  border: 1px solid var(--border);
+  border-bottom-width: 2px;
+  border-radius: 6px;
+}
+
+.default-app ol {
+  max-width: 62ch;
+  padding-left: 1.4em;
+}
+
+.default-app li {
+  margin-bottom: 0.5em;
+}
+
+.shell {
+  max-width: 62ch;
+  margin: 10px 0 1em;
+  padding: 12px 14px;
+  background: var(--code-bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow-x: auto;
+  font-family: var(--font-mono);
+  font-size: 0.8125rem;
+  line-height: 1.5;
+}
+
+/* ---------- demo frame ---------- */
+
+.demo-frame {
+  background: var(--bg);
+  color: var(--fg);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  box-shadow: var(--shadow);
+  overflow: hidden;
+}
+
+.demo-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  height: 42px;
+  padding: 0 10px;
+  background: var(--toolbar-bg);
+  border-bottom: 1px solid var(--border);
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.demo-bar .doc-name {
+  flex: 1;
+  min-width: 0;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--fg-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.segmented {
+  display: inline-flex;
+  gap: 2px;
+  padding: 2px;
+  background: var(--code-bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+
+.segmented button {
+  appearance: none;
+  border: none;
+  background: transparent;
+  color: var(--fg-muted);
+  font: inherit;
+  font-family: var(--font-family);
+  font-size: 12px;
+  padding: 3px 10px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.segmented button:hover {
+  color: var(--fg);
+}
+
+.segmented button[aria-pressed="true"] {
+  background: var(--bg);
+  color: var(--fg);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.12);
+}
+
+.demo-body {
+  max-height: clamp(340px, 62vh, 660px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  background: var(--bg);
+  /* theme.css puts this on `main`, outside the measured column */
+  padding: 14px 14px 40px;
+}
+
+/* ========== document styles (theme.css, verbatim) ========== */
+
+article {
+  max-width: var(--content-width);
+  margin: 0 auto;
+  word-wrap: break-word;
+}
+
+article h1, article h2, article h3,
+article h4, article h5, article h6 {
+  margin-top: 1.5em;
+  margin-bottom: 0.6em;
+  line-height: 1.25;
+  font-weight: 600;
+}
+
+article h1 {
+  font-size: 2em;
+  padding-bottom: 0.3em;
+  border-bottom: 1px solid var(--border);
+}
+
+article h2 {
+  font-size: 1.5em;
+  padding-bottom: 0.3em;
+  border-bottom: 1px solid var(--border);
+}
+
+article h3 { font-size: 1.25em; }
+article h4 { font-size: 1em; }
+article h5 { font-size: 0.875em; }
+article h6 { font-size: 0.85em; color: var(--fg-muted); }
+
+article p, article ul, article ol, article table, article blockquote {
+  margin-top: 0;
+  margin-bottom: 1em;
+}
+
+article a {
+  color: var(--link);
+  text-decoration: none;
+}
+
+article a:hover {
+  text-decoration: underline;
+}
+
+article img {
+  max-width: 100%;
+  height: auto;
+}
+
+article blockquote {
+  margin-left: 0;
+  margin-right: 0;
+  padding: 0 1em;
+  color: var(--fg-muted);
+  border-left: 0.25em solid var(--border);
+}
+
+article hr {
+  height: 1px;
+  border: none;
+  background: var(--border);
+  margin: 2em 0;
+}
+
+article ul, article ol {
+  padding-left: 2em;
+}
+
+article li + li {
+  margin-top: 0.25em;
+}
+
+article li:has(> input[type="checkbox"]) {
+  list-style: none;
+  margin-left: -1.5em;
+}
+
+article input[type="checkbox"] {
+  accent-color: var(--accent);
+  margin-right: 0.5em;
+  vertical-align: middle;
+}
+
+article table {
+  border-collapse: collapse;
+  display: block;
+  max-width: 100%;
+  overflow-x: auto;
+}
+
+article th, article td {
+  border: 1px solid var(--border);
+  padding: 6px 13px;
+}
+
+article th {
+  font-weight: 600;
+  background: var(--code-bg);
+}
+
+article code {
+  font-family: var(--font-mono);
+  font-size: 0.875em;
+}
+
+article :not(pre) > code {
+  background: var(--code-bg);
+  padding: 0.2em 0.4em;
+  border-radius: 6px;
+}
+
+article pre {
+  background: var(--code-bg);
+  border-radius: 8px;
+  padding: 14px 16px;
+  overflow-x: auto;
+  line-height: 1.45;
+}
+
+article .chroma {
+  border-radius: 8px;
+}
+
+.codeblock {
+  position: relative;
+  margin-bottom: 1em;
+}
+
+.codeblock > pre {
+  margin: 0;
+}
+
+.codeblock .copy-btn {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  appearance: none;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg);
+  color: var(--fg-muted);
+  font-family: var(--font-family);
+  font-size: 11px;
+  padding: 3px 8px;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 120ms ease;
+}
+
+.codeblock:hover .copy-btn,
+.codeblock .copy-btn:focus-visible {
+  opacity: 1;
+}
+
+.codeblock .copy-btn:hover {
+  color: var(--fg);
+}
+
+/* ---------- footer ---------- */
+
+footer {
+  border-top: 1px solid var(--border);
+  padding: 32px 0 48px;
+  font-size: 13px;
+  color: var(--fg-muted);
+}
+
+footer .links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 18px;
+  margin-bottom: 12px;
+}
+
+/* ---------- reduced motion ---------- */
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+  }
+}

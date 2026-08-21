@@ -2,6 +2,8 @@
 
 [![CI](https://github.com/lifeart/md-view/actions/workflows/ci.yml/badge.svg)](https://github.com/lifeart/md-view/actions/workflows/ci.yml)
 
+**[mdv site and live demo →](https://lifeart.github.io/md-view/)**
+
 **Double-click a markdown file. Read it. That's the whole product.**
 
 Somewhere in the last few years, markdown stopped being a programmer thing. Meeting notes, specs, AI chat exports, documentation, half the files anyone sends you — it's all `.md` now. And macOS still has no one-click way to *read* one: Quick Look shows raw text, and opening an editor means waiting for an IDE to boot so you can use 5% of it — editing chrome for a reading task.
@@ -33,9 +35,9 @@ All three screenshots are the app itself rendering [`docs/screenshots/demo.md`](
 
 ## Install
 
-Build the DMG (or grab a built one), then:
+**[Download the latest DMG](https://github.com/lifeart/md-view/releases/latest/download/MDv.dmg)** — Apple silicon, Developer ID signed and notarized, so it opens without a Gatekeeper prompt. Then:
 
-1. Open `md-view-0.1.0.dmg` and drag **MDv** into **Applications**.
+1. Open the DMG and drag **MDv** into **Applications**.
 2. Double-click to launch. A DMG built through `scripts/sign.sh` + `scripts/notarize.sh` (Developer ID + notarized) opens straight away on any Mac; an ad-hoc or development-signed one needs right-click → **Open** once.
 
 The very first launch after installing may be slightly slower while macOS verifies the new binary; after that, double-clicking a markdown file shows the rendered window in ~0.2 s.

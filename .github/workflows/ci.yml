@@ -82,6 +82,15 @@ jobs:
           go run ./tools/gen-chroma
           git diff --exit-code -- frontend/src/chroma.css
 
+      # The landing page cannot @import the app's stylesheet (frontend/ is not
+      # published to Pages), so docs/chroma.css is a copy — and a copy with no
+      # check is a copy that drifts. The demo frame on the site would then
+      # highlight code differently from the app it is advertising.
+      - name: docs/chroma.css is a byte-identical copy of the app's
+        run: |
+          cmp frontend/src/chroma.css docs/chroma.css \
+            || { echo "::error::docs/chroma.css drifted — run: cp frontend/src/chroma.css docs/chroma.css"; exit 1; }
+
       # Catch-all: nothing else tracked (package-lock.json in particular)
       # may be modified by the build.
       - name: Working tree is clean after the build

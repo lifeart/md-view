@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" role="img" aria-label="MDv">
+  <!-- The MDv mark: the markdown "M↓" from build/appicon.png, in the app's own
+       tokens — #1f2328 (--fg) and #0969da (--accent / --link). -->
+  <style>
+    .m { fill: #1f2328; }
+    @media (prefers-color-scheme: dark) { .m { fill: #e6edf3; } }
+  </style>
+  <path class="m" d="M1 18V6h2.7L7 10.6 10.3 6H13v12h-2.8v-7.4L7 14.9l-3.2-4.3V18z"/>
+  <g fill="#0969da">
+    <rect x="17.4" y="6" width="3.2" height="6.4"/>
+    <path d="M15 11.6h8L19 18z"/>
+  </g>
+</svg>

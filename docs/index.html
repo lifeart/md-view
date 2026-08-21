@@ -1,0 +1,373 @@
+<!DOCTYPE html>
+<!--
+  MDv landing page — served by GitHub Pages from this /docs folder.
+
+  Self-contained: no external fonts, no CDN scripts, no analytics, no cookies.
+  The one network call the page makes is an optional GitHub API request that
+  fills in the release version/size/date next to the download button; the
+  button itself is a plain <a href> to the permanent latest-release asset and
+  never depends on it.
+
+  Regenerating the demo document (the block between the GENERATED markers
+  below) — it is MDv's own render output, never hand-written:
+
+    mkdir -p /tmp/mdv-gen && cd /tmp/mdv-gen
+    cat > go.mod <<'EOF'
+    module md-view/gen-demo
+    go 1.25.0
+    require md-view v0.0.0
+    replace md-view => /path/to/md-view
+    EOF
+    # main.go: render.New().RenderFile(os.Args[1]) -> print doc.HTML
+    #   (the module path must start with "md-view/" or Go refuses the
+    #    md-view/internal/render import)
+    go mod tidy && go run . /path/to/md-view/docs/screenshots/demo.md
+
+    Paste stdout between the markers, unchanged. The <div class="codeblock">
+    wrapper and the Copy button are added at runtime by app.js, exactly as
+    main.ts does in the app, so the inlined HTML stays byte-identical to what
+    the Go pipeline emits.
+
+  chroma.css here is a BYTE-IDENTICAL copy of frontend/src/chroma.css (the
+  app CSS is not published to Pages, so it cannot be @import-ed). Keep it
+  that way: ci.yml fails the build if the two drift.
+  Regenerating chroma.css:  cp ../frontend/src/chroma.css chroma.css
+  Regenerating img/*.png:   sips -Z <1000|2000> screenshots/<n>.png --out img/<n>-<w>.png
+                            && pngquant --quality=80-98 --force --output <f> <f>
+                            && oxipng -o 4 --strip safe <f>
+-->
+<html lang="en" data-page-theme="system">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MDv — a fast markdown viewer for macOS</title>
+<meta name="description" content="Double-click a markdown file. Read it. MDv is a native macOS markdown viewer: rendered in Go before the webview paints, ~0.2 s from double-click to a readable document, ~13 MB, no bundled browser.">
+<meta name="color-scheme" content="light dark">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="style.css">
+<link rel="stylesheet" href="chroma.css">
+<meta property="og:type" content="website">
+<meta property="og:title" content="MDv — a fast markdown viewer for macOS">
+<meta property="og:description" content="Double-click a markdown file. Read it. That's the whole product.">
+<meta property="og:url" content="https://lifeart.github.io/md-view/">
+<meta property="og:image" content="https://lifeart.github.io/md-view/img/reading-light-1000.png">
+<meta name="twitter:card" content="summary_large_image">
+<script>
+  // Applies the saved page theme before first paint — the web equivalent of
+  // the app inlining its persisted settings into the shell (ARCHITECTURE.md,
+  // "Opening a file (the fast path)"). Also marks the document as
+  // script-enabled so controls that need JS are only shown when they work.
+  (function () {
+    var root = document.documentElement;
+    root.classList.add('js');
+    try {
+      var saved = localStorage.getItem('mdv-page-theme');
+      if (saved === 'light' || saved === 'dark') root.setAttribute('data-page-theme', saved);
+    } catch (err) {
+      // Storage can be blocked (private mode, embedded browsers). Falling back
+      // to the OS preference is the correct behaviour, not an error to report.
+      console.warn('MDv: theme preference unavailable, following the OS instead:', err);
+    }
+  })();
+</script>
+</head>
+<body>
+
+<a class="skip-link" href="#main">Skip to content</a>
+
+<header class="masthead">
+  <div class="wrap">
+    <a class="wordmark" href="./">
+      <svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+        <path fill="currentColor" d="M1 18V6h2.7L7 10.6 10.3 6H13v12h-2.8v-7.4L7 14.9l-3.2-4.3V18z"/>
+        <g fill="#0969da">
+          <rect x="17.4" y="6" width="3.2" height="6.4"/>
+          <path d="M15 11.6h8L19 18z"/>
+        </g>
+      </svg>
+      MDv <span class="tag hide-sm">markdown viewer for macOS</span>
+    </a>
+    <nav aria-label="Page sections">
+      <a class="hide-sm" href="#demo">Demo</a>
+      <a class="hide-sm" href="#features">Features</a>
+      <a href="https://github.com/lifeart/md-view">GitHub</a>
+    </nav>
+    <span class="theme-picker js-only">
+      <label class="hide-sm" for="page-theme">Theme</label>
+      <select id="page-theme" class="control" aria-label="Theme">
+        <option value="system">System</option>
+        <option value="light">Light</option>
+        <option value="dark">Dark</option>
+      </select>
+    </span>
+  </div>
+</header>
+
+<main id="main">
+
+  <section class="hero">
+    <div class="wrap">
+      <h1>Double-click a markdown file. Read it.</h1>
+      <p class="lede">
+        That's the whole product. Meeting notes, specs, AI chat exports, READMEs — half
+        the files anyone sends you are <span class="code">.md</span>, and macOS still has
+        no one-click way to <em>read</em> one. Quick Look shows raw text; an editor makes
+        you wait for an IDE to boot so you can use 5% of it. MDv is the missing viewer.
+      </p>
+
+      <p class="download">
+        <a class="btn btn-primary" id="download"
+           href="https://github.com/lifeart/md-view/releases/latest/download/MDv.dmg">
+          Download MDv
+        </a>
+        <span class="release-meta" id="release-meta">Latest release &middot; notarized DMG</span>
+        <a class="btn btn-secondary" href="https://github.com/lifeart/md-view/releases/latest">
+          Release notes
+        </a>
+      </p>
+
+      <p class="platform-note">
+        For Apple silicon Macs (arm64) — there is no Intel build. The DMG is signed with a
+        Developer ID certificate and notarized by Apple, so it opens without a Gatekeeper
+        prompt: drag <strong>MDv</strong> into Applications and double-click any
+        <span class="code">.md</span> file. About 5&nbsp;MB to download, ~13&nbsp;MB on disk.
+      </p>
+
+      <figure style="margin-top:44px">
+        <img src="img/reading-light-1000.png"
+             srcset="img/reading-light-1000.png 1000w, img/reading-light-2000.png 2000w"
+             sizes="(min-width: 1032px) 952px, calc(100vw - 40px)"
+             width="2000" height="1580" fetchpriority="high" decoding="async"
+             alt="A markdown document open in MDv: an H1, body prose, a GFM table and a syntax-highlighted Go code block on a white background with no visible window chrome.">
+        <figcaption>Nothing but the document. The toolbar auto-hides until you reach for it.</figcaption>
+      </figure>
+    </div>
+  </section>
+
+  <section id="demo">
+    <div class="wrap">
+      <h2>This is the app's own output</h2>
+      <p>
+        The document below is not a mock-up. It is
+        <a href="https://github.com/lifeart/md-view/blob/main/docs/screenshots/demo.md">the same
+        <span class="code">demo.md</span></a> as in the screenshots, run through MDv's real
+        pipeline — <span class="code">goldmark</span> for GFM,
+        <span class="code">chroma</span> for highlighting,
+        <span class="code">bluemonday</span> for sanitization — and pasted in unchanged,
+        with the app's own stylesheet.
+      </p>
+      <p>
+        Switching theme flips a single <span class="code">data-theme</span> attribute and
+        nothing re-renders — not the prose, not the table, not the syntax highlighting,
+        because chroma emits classes rather than inline colors. Try it:
+      </p>
+
+      <div class="demo-frame" id="demo-frame" data-theme="system">
+        <div class="demo-bar">
+          <span class="doc-name">demo.md</span>
+          <span class="segmented js-only" role="group" aria-label="Demo theme">
+            <button type="button" data-set-theme="light" aria-pressed="false">Light</button>
+            <button type="button" data-set-theme="dark" aria-pressed="false">Dark</button>
+            <button type="button" data-set-theme="sepia" aria-pressed="false">Sepia</button>
+          </span>
+        </div>
+        <div class="demo-body" id="demo-body" tabindex="0" role="region" aria-label="Rendered markdown document">
+          <article>
+<!-- GENERATED: MDv render output for docs/screenshots/demo.md — do not edit by hand -->
+<h1 id="rendering-notes">Rendering Notes</h1>
+<p>Markdown is parsed and highlighted in Go — <code>goldmark</code> for GFM, <code>chroma</code> for
+code, <code>bluemonday</code> for sanitization — and the finished HTML is inlined into the
+shell before the webview paints, so the <strong>first paint is the finished document</strong>.</p>
+<h2 id="budgets">Budgets</h2>
+<table>
+<thead>
+<tr>
+<th>Path</th>
+<th>Budget</th>
+<th>Measured</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Cold launch to window</td>
+<td>&lt; 250 ms</td>
+<td>~200 ms</td>
+</tr>
+<tr>
+<td>Warm open (resident)</td>
+<td>&lt; 200 ms</td>
+<td>~150 ms</td>
+</tr>
+<tr>
+<td>In-app navigation</td>
+<td>&lt; 50 ms</td>
+<td>~20 ms</td>
+</tr>
+</tbody>
+</table>
+<h2 id="highlighting">Highlighting</h2>
+<p>Chroma emits class-based spans, so code themes flip with the same CSS variables
+as the rest of the page — changing the theme re-renders nothing:</p>
+<pre class="chroma"><code><span class="line"><span class="cl"><span class="kd">func</span><span class="w"> </span><span class="p">(</span><span class="nx">a</span><span class="w"> </span><span class="o">*</span><span class="nx">App</span><span class="p">)</span><span class="w"> </span><span class="nf">RenderDocument</span><span class="p">(</span><span class="nx">path</span><span class="w"> </span><span class="kt">string</span><span class="p">)</span><span class="w"> </span><span class="p">(</span><span class="nx">render</span><span class="p">.</span><span class="nx">Doc</span><span class="p">,</span><span class="w"> </span><span class="kt">error</span><span class="p">)</span><span class="w"> </span><span class="p">{</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">	</span><span class="nx">resolved</span><span class="p">,</span><span class="w"> </span><span class="nx">err</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="nx">a</span><span class="p">.</span><span class="nx">scope</span><span class="p">.</span><span class="nf">Check</span><span class="p">(</span><span class="nx">path</span><span class="p">)</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">	</span><span class="k">if</span><span class="w"> </span><span class="nx">err</span><span class="w"> </span><span class="o">!=</span><span class="w"> </span><span class="kc">nil</span><span class="w"> </span><span class="p">{</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">		</span><span class="k">return</span><span class="w"> </span><span class="nx">render</span><span class="p">.</span><span class="nx">Doc</span><span class="p">{},</span><span class="w"> </span><span class="nx">fmt</span><span class="p">.</span><span class="nf">Errorf</span><span class="p">(</span><span class="s">&#34;outside scope: %w&#34;</span><span class="p">,</span><span class="w"> </span><span class="nx">err</span><span class="p">)</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">	</span><span class="p">}</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">	</span><span class="k">return</span><span class="w"> </span><span class="nx">a</span><span class="p">.</span><span class="nx">renderer</span><span class="p">.</span><span class="nf">RenderFile</span><span class="p">(</span><span class="nx">resolved</span><span class="p">)</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="p">}</span><span class="w">
+</span></span></span></code></pre><blockquote>
+<p>Any single fence over 50 KB skips highlighting and renders as plain escaped
+<code>&lt;pre&gt;&lt;code&gt;</code>. Chroma tokenization costs seconds per megabyte, and a bounded
+worst case matters more than colored tokens in a generated dump.</p>
+</blockquote>
+<h2 id="reading-defaults">Reading defaults</h2>
+<ul>
+<li>White background, system font, ~72ch column, auto-hiding toolbar</li>
+<li>Light / dark / sepia / follow-system themes, persisted between launches</li>
+<li>Font family, size (<code>Cmd+=</code> / <code>Cmd+-</code>) and column width adjustable</li>
+<li>Relative links to other markdown files open in-app, with back/forward</li>
+</ul>
+<p>This document is the source for the screenshots in this directory; see the
+README for how they are produced.</p>
+<!-- /GENERATED -->
+          </article>
+        </div>
+      </div>
+      <p class="small muted" style="margin-top:12px">
+        In the app the same control lives behind the <span class="code">Aa</span> button, together
+        with font family, size and column width, and the choice persists between launches.
+      </p>
+    </div>
+  </section>
+
+  <section id="features">
+    <div class="wrap">
+      <h2>What it does, and what it doesn't</h2>
+      <ul class="features">
+        <li>
+          <h3>Opens before you notice</h3>
+          <p>~0.2&nbsp;s from double-click to a rendered window, cold; well under 150&nbsp;ms
+             into the resident instance. Markdown becomes HTML in Go <em>before</em> the
+             webview paints, so the first paint is the finished document.</p>
+        </li>
+        <li>
+          <h3>Reads like a document</h3>
+          <p>White background, system font, ~72ch column, auto-hiding toolbar. Light, dark,
+             sepia or follow-system; font family, size (<span class="kbd">⌘=</span> /
+             <span class="kbd">⌘-</span>) and column width adjustable — and remembered.</p>
+        </li>
+        <li>
+          <h3>Navigates between files</h3>
+          <p>Relative links to other markdown files open in place, with back/forward
+             (<span class="kbd">⌘[</span> / <span class="kbd">⌘]</span>), scroll restoration
+             and anchors. <span class="code">http(s)</span> links go to your browser.</p>
+        </li>
+        <li>
+          <h3>Copies as plain text</h3>
+          <p>Selecting and copying yields text, not rich HTML. Links offer “Copy Link
+             Address”; code blocks get a hover copy button — the one in the frame above
+             is the real thing.</p>
+        </li>
+        <li>
+          <h3>Treats documents as untrusted</h3>
+          <p>Rendered HTML is sanitized with bluemonday, the webview runs a strict CSP, and
+             file access is scoped to the directories of documents you opened. Executables
+             are revealed in Finder, never launched.</p>
+        </li>
+        <li>
+          <h3>Stays small</h3>
+          <p>Go + Wails v2 + the system WKWebView: ~13&nbsp;MB on disk, no bundled browser,
+             no JS framework. It does not edit, and it does not want to be your IDE.</p>
+        </li>
+      </ul>
+      <p class="small muted" style="margin-top:28px">
+        The numbers above are measured on an M-series Mac and broken down, path by path, in
+        <a href="https://github.com/lifeart/md-view/blob/main/ARCHITECTURE.md">ARCHITECTURE.md</a>
+        — including where a cold launch actually spends its time.
+      </p>
+    </div>
+  </section>
+
+  <section id="screenshots">
+    <div class="wrap">
+      <h2>Appearance</h2>
+      <p>
+        Theme, font, size and column width live behind the <span class="code">Aa</span> button in
+        the auto-hiding toolbar, and persist between launches.
+      </p>
+      <div class="shots">
+        <figure>
+          <img src="img/reading-dark-1000.png"
+               srcset="img/reading-dark-1000.png 1000w, img/reading-dark-2000.png 2000w"
+               sizes="(min-width: 1032px) 458px, (min-width: 800px) 45vw, calc(100vw - 40px)"
+               width="2000" height="1580" loading="lazy" decoding="async"
+               alt="The same document in the dark theme, scrolled to a syntax-highlighted Go function and a blockquote, on a near-black background.">
+          <figcaption>The dark theme. The code palette flips with it.</figcaption>
+        </figure>
+        <figure>
+          <img src="img/appearance-menu-1000.png"
+               srcset="img/appearance-menu-1000.png 1000w, img/appearance-menu-2000.png 2000w"
+               sizes="(min-width: 1032px) 458px, (min-width: 800px) 45vw, calc(100vw - 40px)"
+               width="2000" height="990" loading="lazy" decoding="async"
+               alt="The MDv toolbar slid into view with the appearance menu open, showing theme, font, size and width controls.">
+          <figcaption>The toolbar and the appearance menu, reached by moving the pointer to the top edge.</figcaption>
+        </figure>
+      </div>
+    </div>
+  </section>
+
+  <section id="default-app" class="default-app">
+    <div class="wrap">
+      <h2>Make it the default for <span class="code">.md</span></h2>
+      <p>
+        The app bundle registers the file types, but macOS still wants you to pick the default
+        handler once. This is the first thing to do after installing.
+      </p>
+      <ol>
+        <li>
+          <strong>In Finder:</strong> right-click any <code>.md</code> file →
+          <strong>Get Info</strong> → <em>Open with:</em> choose <strong>MDv</strong> →
+          <strong>Change All…</strong>. Repeat for <code>.markdown</code> if you use it.
+        </li>
+        <li>
+          <strong>Or all extensions at once,</strong> from a checkout of the repo:
+          <pre class="shell">swift scripts/set-default.swift</pre>
+        </li>
+      </ol>
+      <p class="small muted">
+        The script points <code>.md</code>, <code>.markdown</code>, <code>.mdown</code> and
+        <code>.mkd</code> at <code>/Applications/MDv.app</code> through the same
+        <code>NSWorkspace</code> API Finder uses, and prints the before/after handler for each.
+        To undo, use Finder's <strong>Change All…</strong> to point the types back.
+      </p>
+      <p class="small muted">
+        MDv stays running after you close its window (<span class="kbd">⌘Q</span> quits), which is
+        what makes later opens warm. <code>scripts/prewarm.sh install</code> makes the first open
+        of a session warm too, by starting it hidden at login.
+      </p>
+    </div>
+  </section>
+
+</main>
+
+<footer>
+  <div class="wrap">
+    <div class="links">
+      <a href="https://github.com/lifeart/md-view">Source on GitHub</a>
+      <a href="https://github.com/lifeart/md-view/releases/latest">Releases</a>
+      <a href="https://github.com/lifeart/md-view/blob/main/ARCHITECTURE.md">Architecture</a>
+      <a href="https://github.com/lifeart/md-view/blob/main/README.md">README</a>
+      <a href="https://github.com/lifeart/md-view/issues">Issues</a>
+    </div>
+    <p>
+      Built with Go, Wails v2 and the system WKWebView by
+      <a href="https://github.com/lifeart">Alex Kanunnikov</a>. This page ships no fonts, no
+      trackers and no cookies; the only request it makes is an optional lookup of the latest
+      release version.
+    </p>
+  </div>
+</footer>
+
+<script src="app.js"></script>
+</body>
+</html>
