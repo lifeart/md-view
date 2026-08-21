@@ -1,12 +1,6 @@
 # MDv
 
-<!-- CI STATUS BADGE — PLACEHOLDER.
-     This repository has no git remote yet, so OWNER/REPO is unknown and the
-     badge would render broken. After `git remote add origin …`, replace
-     OWNER/REPO below and uncomment the line:
-
-[![CI](https://github.com/OWNER/REPO/actions/workflows/ci.yml/badge.svg)](https://github.com/OWNER/REPO/actions/workflows/ci.yml)
--->
+[![CI](https://github.com/lifeart/md-view/actions/workflows/ci.yml/badge.svg)](https://github.com/lifeart/md-view/actions/workflows/ci.yml)
 
 **Double-click a markdown file. Read it. That's the whole product.**
 
@@ -120,9 +114,8 @@ hdiutil create -volname "MDv" -srcfolder "$STAGE" -ov -format UDZO build/bin/md-
 
 ## CI
 
-Two GitHub Actions workflows live in `.github/workflows/`. (Status badge: the
-markdown for it sits commented out at the top of this file — replace
-`OWNER/REPO` and uncomment it once this repository has a git remote.)
+Two GitHub Actions workflows live in `.github/workflows/`; the badge at the
+top of this file tracks `ci.yml`.
 
 **`ci.yml`** — on every push to `main` and every pull request. Superseded runs
 are cancelled. Three jobs:

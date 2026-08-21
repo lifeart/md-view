@@ -44,4 +44,3 @@ require (
 	golang.org/x/text v0.39.0 // indirect
 )
 
-// replace github.com/wailsapp/wails/v2 v2.14.0 => /Users/lifeart/go/pkg/mod
