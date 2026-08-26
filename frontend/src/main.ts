@@ -34,6 +34,29 @@ function trace(msg: string): void {
   void Trace(msg);
 }
 
+// Report the webview's own first paint into the same trace.
+//
+// Every Go-side milestone is upstream of pixels — "shell served" is only when
+// the bytes were handed over, and Ready() is two IPC round trips *past* the
+// paint — so without this the one number that matters, when the reader actually
+// sees the document, is the one nothing measures.
+//
+// The timestamp is logged as absolute epoch milliseconds rather than the
+// trace line's own arrival time: the observer callback runs ~30 ms after the
+// paint it reports, and blaming the app for that overstated cold start by ~30 ms
+// — enough to invent a regression that was not there.
+// scripts/perf-coldstart.sh reads the epoch value.
+try {
+  new PerformanceObserver((list) => {
+    for (const entry of list.getEntries()) {
+      trace(`paint ${entry.name} at epoch ${(performance.timeOrigin + entry.startTime).toFixed(1)}`);
+    }
+  }).observe({ type: 'paint', buffered: true });
+} catch {
+  // PerformanceObserver or the paint entry type is unavailable: this is a
+  // diagnostic, so carry on without it rather than breaking startup.
+}
+
 function errMsg(err: unknown): string {
   if (err instanceof Error) return err.message;
   return String(err);
@@ -519,6 +542,7 @@ document.addEventListener('copy', (e) => {
 
 // ---------- math and diagrams ----------
 
+
 // Both renderers live in their own modules so Vite splits them into chunks that
 // are fetched only when a document needs them; a document with neither pays
 // nothing. enhanceRichContent re-checks the navigation token because the
@@ -738,6 +762,16 @@ async function init(): Promise<void> {
     // The cold-launch fast path never goes through renderInto, so it has to
     // kick off math and diagrams itself — otherwise a double-clicked document
     // shows its TeX and mermaid source until the reader navigates away and back.
+    //
+    // Deliberately NOT deferred until after first paint. Importing ./math pulls
+    // in KaTeX's stylesheet, and the obvious worry is that a stylesheet
+    // arriving before the first frame is render-blocking — Wails sets
+    // suppressesIncrementalRendering, so WebKit withholds that frame until the
+    // page settles. Measured, it makes no difference: gating this on the paint
+    // entry moved first paint by 1.2 ms on a document with four expressions and
+    // a diagram, inside run-to-run noise (scripts/perf-coldstart.sh, n=7 each).
+    // A math document does paint ~24 ms later than a plain one, but that is the
+    // document being larger, not the stylesheet.
     void enhanceRichContent(navSeq);
   }
 

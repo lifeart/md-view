@@ -64,7 +64,7 @@ Why this shape:
 3. First paint is the finished, correctly themed document. The TS layer hydrates afterward: it reads `data-doc-path`, seeds its state (current path, first history entry, title) **without** calling `RenderDocument`, and passes the inlined path to `Ready(inlinedPath)`. Go then skips delivering the buffered open for that same path but still delivers any open that arrived later; `Ready("")` (nothing inlined) flushes buffered opens as `doc:open` events, and — with nothing pending either — re-delivers the current document so a webview reload cannot lose it.
 4. Subsequent navigations call a bound Go method (`RenderDocument(path)`) and swap the content in place — no page reload, JS state (history stack) survives.
 
-Performance budget: cold launch → window **< 250 ms** (measured ~200 ms; content ~360 ms), warm open into the resident instance **< 200 ms** (measured ~150 ms: event → render → DOM commit → invisible present → painted frame → reveal), in-app navigation to another document **< 50 ms**, 1 MB file parse+render **< 400 ms** (typical prose ~150 ms measured).
+Performance budget, measured from the Finder gesture by `scripts/perf-coldstart.sh` (not from the app's first trace line — see the launch breakdown below): cold launch → first paint **< 500 ms** (measured ~420 ms, of which ~158 ms is AppKit/WebKit floor), warm open into the resident instance **< 200 ms** (measured 52–68 ms to a presented window), in-app navigation to another document **< 50 ms**, 1 MB file parse+render **< 400 ms** (typical prose ~150 ms measured).
 
 The app is **resident**: `HideWindowOnClose` keeps the process alive when the window is closed (Cmd+Q quits), so subsequent document opens skip process spawn and WebKit init entirely — LaunchServices delivers the file to the running instance and the frontend commits the DOM and calls a single native present primitive — the window is ordered front at imperceptible alpha so the suspended compositor applies the new content, then revealed with a 50 ms native alpha fade. Visible-window document swaps run through document.startViewTransition (engine-managed 50 ms crossfade — atomic, no intermediate frame to flicker). The document is cleared whenever the window is genuinely hidden (close, Cmd+H, minimize — checked natively, so mere occlusion keeps it) and restored via the same transition on re-show (~140 ms measured). The restore is deliberately second-class: macOS un-hides the app a few ms *before* it delivers a file-open to it (8–17 ms measured), so `visibilitychange: visible` and `doc:open` arrive together in either order. A restore started at once would take a newer navigation token than the open and put the previous document back instead of the one just opened — so the restore waits a 50 ms grace, yields to any render already in flight, and every render re-checks its token inside the (view-transition-deferred) commit, not just before it. An optional login item (`scripts/prewarm.sh`, launches the app with `--hidden`) makes the first open of a session warm too: `--hidden` boots everything but keeps the window gated (`hiddenUntilOpen`) until the first open. Syntax highlighting is capped: any single code fence larger than 50 KB renders as a plain escaped `<pre><code>` block (no chroma) — chroma tokenization costs seconds per megabyte, so the cap keeps pathological code-heavy documents bounded.
 
@@ -82,7 +82,23 @@ Measured on an M-series Mac, medians of 7 interleaved runs per arm, time from th
 | App launch, no document | 219 ms | 217 ms |
 | Binary + argv (no LaunchServices) | 177 ms | 183 ms |
 
-What is left is not ours: ~105 ms of LaunchServices + `exec` + dyld + Go package init (of which chroma's lexer and style registries are ~15 ms), ~95 ms of Wails setup and WKWebView creation, then the window server. The document itself paints ~130 ms after that, dominated by WKWebView's first navigation; serving the shell (render + inject) costs ~2.5 ms of it.
+What is left is not ours, and `scripts/perf-coldstart.sh` now measures it from the gesture rather than from the app's first trace line — the older numbers below started the clock after `exec` and dyld, which flattered them by about a third. Median of 9, `testdata/gfm.md`, on an M-series Mac:
+
+| stage | ms | ours? |
+|---|---:|---|
+| LaunchServices dispatch + `exec` + dyld + Go package init | 103 | **9.6 ms** of it is Go package init |
+| `wails.Run` → OnStartup (AppKit, NSWindow, WKWebView creation) | 132 | no — one synchronous ObjC call |
+| LaunchServices delivering the `odoc` Apple Event | 50 | no — and off the critical path (see below) |
+| WKWebView's first navigation (WebContent process spawn) | 69 | no |
+| render + inject the document into the shell | 0.2 | ours, and now pre-rendered |
+| WebKit parse, subresources, layout → first paint | 66 | partly |
+| **cold start to first paint** | **421** | |
+
+Two corrections to what this document used to claim. Go package init is **9.6 ms, not ~15 ms** (chroma's lexer and style registries are 7.5 ms of it, `GODEBUG=inittrace=1`), and of the "~105 ms" before `main()` only ~15 ms is the process — the other ~90 ms is LaunchServices before the first instruction executes. Neither is worth attacking: dropping chroma's style registry entirely, which MDv never uses because highlighting is class-based, saves 3.7 ms for the price of vendoring a dependency.
+
+The 50 ms spent waiting for the Apple Event is **slack, not latency**. `loadRequest` is issued before the event arrives, so the document path is known 69 ms before the webview asks for it. Closing that gap saves nothing; filling it is what `prerender.go` does.
+
+**A 3× cold start is not reachable on this stack.** AppKit's first `NSApplication` init (~40 ms), WKWebView construction (~36 ms) and WebKit's first-navigation process spawn (~82 ms) are ~158 ms of platform floor before a line of MDv's own code runs, against a ~140 ms target. MDv's controllable share of the 421 ms is roughly 22 ms. The answer to "open faster" is the resident instance, not a faster cold path: a warm open is **52–68 ms** to a presented window, of which ~45 ms is again the OS delivering the Apple Event.
 
 Math and diagrams are the one thing that lands *after* first paint, and they
 are the reason the binary is ~16 MB rather than ~12 MB. Measured on the same
@@ -197,9 +213,11 @@ Rendered markdown is untrusted input:
 ```
 md-view/
 ├── main.go              # bootstrap, OnFileOpen, single instance, argv
+├── prerender.go         # render into the slack before the webview asks
 ├── scripts/
 │   ├── e2e-warm-open.sh # the OS un-hide vs. doc:open race, against the real app
-│   └── e2e-frontend.sh  # the built bundle, headless, both document entry paths
+│   ├── e2e-frontend.sh  # the built bundle, headless, both document entry paths
+│   └── perf-coldstart.sh # launch breakdown, timed from the gesture
 ├── internal/
 │   ├── render/          # goldmark(GFM+) → chroma → bluemonday
 │   │                    #   alerts.go, math.go, slug.go, frontmatter.go

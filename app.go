@@ -38,6 +38,11 @@ type App struct {
 	currentDoc string // last document opened or rendered; re-inlined on reload
 	storeErr   error  // deferred settings-store init error, surfaced via GetSettings
 
+	// prerendered: the render started when a document path became known, so it
+	// overlaps WebKit's first navigation instead of following it. See
+	// prerender.go.
+	prerendered *prerender
+
 	// hiddenUntilOpen: launched with --hidden (login-item prewarm) — keep the
 	// window off screen until the first document open asks for it.
 	hiddenUntilOpen bool
@@ -183,6 +188,10 @@ func (a *App) openPath(path string) {
 		a.emitError(fmt.Sprintf("Cannot open %q: %v", path, err))
 		return
 	}
+	// The path is trusted now, and nothing will ask for the rendered document
+	// for at least a few milliseconds — on a cold launch, ~65 ms of WebKit
+	// navigation. Start rendering into that gap.
+	a.startPrerender(abs)
 	a.mu.Lock()
 	a.currentDoc = abs
 	a.hiddenUntilOpen = false // any open means the window is wanted
@@ -303,7 +312,7 @@ func (a *App) RenderDocument(path string) (render.Doc, error) {
 	if !links.IsMarkdownPath(resolved) {
 		return render.Doc{}, fmt.Errorf("not a markdown file: %s", resolved)
 	}
-	doc, err := a.renderer.RenderFile(resolved)
+	doc, err := a.documentFor(resolved)
 	if err != nil {
 		return render.Doc{}, err
 	}
@@ -541,6 +550,11 @@ func (a *App) assetMiddleware(next http.Handler) http.Handler {
 			return
 		}
 		if !strings.HasPrefix(r.URL.Path, render.AssetRoutePrefix) {
+			// Under suppressesIncrementalRendering (which Wails sets) WebKit
+			// withholds the first frame until the page has loaded, so every
+			// render-blocking subresource is serial with first paint. Trace
+			// them to keep that cost visible; see scripts/perf-coldstart.sh.
+			tracef("asset %s", r.URL.Path)
 			next.ServeHTTP(w, r)
 			return
 		}

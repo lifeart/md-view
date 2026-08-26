@@ -14,7 +14,7 @@ MDv is the missing viewer: a native macOS app that opens a rendered, readable ma
 
 *Nothing but the document. The toolbar auto-hides until you reach for it.*
 
-- **Fast, measured:** ~0.2 s from double-click to a rendered window, cold; well under 150 ms when the resident instance is warm. Rendering happens in Go before the webview paints — the first paint *is* the finished document.
+- **Fast, measured:** ~0.4 s from double-click to a rendered window, cold — about 40% of which is AppKit and WebKit starting up before MDv runs a line; ~60 ms into the resident instance. Rendering happens in Go before the webview paints — the first paint *is* the finished document.
 - **Everything GitHub renders:** GFM tables (with column alignment), task lists, footnotes, `> [!NOTE]` alerts, `:tada:` emoji, YAML front matter, `<details>`, `<kbd>`, `<picture>`, `$…$` math and ```` ```mermaid ```` diagrams — with GitHub's own heading-anchor slugs, so a table of contents copied from a README still lands where it should.
 - **Navigable:** relative links to other markdown files open in-app with back/forward (`Cmd+[` / `Cmd+]`), scroll restoration, and anchor support; `http(s)` links open in your browser.
 - **Copy-friendly:** selecting and copying yields plain text; links offer "Copy Link Address"; code blocks have a hover copy button.
@@ -80,6 +80,8 @@ scripts/e2e-frontend.sh    # after a frontend build: runs the built dist headles
                            # bindings stubbed, and checks that math, diagrams, copy buttons and
                            # anchors come out right on *both* entry paths (cold-launch inline and
                            # doc:open) — none of which the Go tests can see
+scripts/perf-coldstart.sh  # after wails build: launch breakdown, timed from the Finder gesture
+                           # (not from the app's first trace line, which flatters it by a third)
 ```
 
 Note: file associations only work for the built, installed bundle — under `wails dev`, open files via `Cmd+O`, drag-and-drop, or a CLI argument (`wails dev -appargs /path/to/doc.md`). Quit any installed MDv before starting a dev session: the single-instance lock makes the second launch hand its arguments to the resident instance and exit, which ends `wails dev` immediately.

@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"md-view/internal/links"
 )
@@ -414,5 +415,124 @@ func TestInitialFileFromArgs(t *testing.T) {
 	}
 	if got := initialFileFromArgs([]string{"-flag", "nope.txt", "missing.md"}); got != "" {
 		t.Errorf("initialFileFromArgs junk = %q, want empty", got)
+	}
+}
+
+// --- pre-render on the launch path (prerender.go) ---
+
+func TestPrerenderIsUsedAndMatchesForegroundRender(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "doc.md")
+	if err := os.WriteFile(path, []byte("# Title\n\n```go\nvar x = 1\n```\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	app := NewApp()
+	if err := app.scope.AddFile(path); err != nil {
+		t.Fatal(err)
+	}
+
+	want, err := app.renderer.RenderFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	app.startPrerender(path)
+	got := app.takePrerender(path)
+	if got == nil {
+		t.Fatal("takePrerender returned nil for a freshly started pre-render")
+	}
+	if got.HTML != want.HTML || got.Title != want.Title || got.Path != want.Path {
+		t.Errorf("pre-rendered document differs from a foreground render:\n got %+v\nwant %+v", *got, want)
+	}
+}
+
+func TestPrerenderIsDiscardedWhenTheFileChanges(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "doc.md")
+	if err := os.WriteFile(path, []byte("# Before\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	app := NewApp()
+	if err := app.scope.AddFile(path); err != nil {
+		t.Fatal(err)
+	}
+	app.startPrerender(path)
+	<-app.prerendered.done
+
+	// Rewrite with different contents and a different mtime; the stale render
+	// must be refused so the reader never sees a document that is not on disk.
+	time.Sleep(10 * time.Millisecond)
+	if err := os.WriteFile(path, []byte("# After, quite different\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if got := app.takePrerender(path); got != nil {
+		t.Errorf("stale pre-render was used: %q", got.HTML)
+	}
+
+	// documentFor must still produce the current contents.
+	doc, err := app.documentFor(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(doc.HTML, "After, quite different") {
+		t.Errorf("documentFor served stale content: %q", doc.HTML)
+	}
+}
+
+func TestPrerenderForAnotherPathIsIgnored(t *testing.T) {
+	dir := t.TempDir()
+	a := filepath.Join(dir, "a.md")
+	b := filepath.Join(dir, "b.md")
+	for p, body := range map[string]string{a: "# Doc A\n", b: "# Doc B\n"} {
+		if err := os.WriteFile(p, []byte(body), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	app := NewApp()
+	if err := app.scope.AddFile(a); err != nil {
+		t.Fatal(err)
+	}
+	app.startPrerender(a)
+	if got := app.takePrerender(b); got != nil {
+		t.Errorf("pre-render for %s was handed out for %s: %q", a, b, got.HTML)
+	}
+	doc, err := app.documentFor(b)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(doc.HTML, "Doc B") {
+		t.Errorf("documentFor(b) returned the wrong document: %q", doc.HTML)
+	}
+}
+
+func TestPrerenderOfAnUnreadableFileFallsBack(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "gone.md")
+	app := NewApp()
+	// Never created: startPrerender must decline and takePrerender return nil
+	// rather than blocking on a channel nobody closes.
+	app.startPrerender(path)
+	if got := app.takePrerender(path); got != nil {
+		t.Errorf("pre-render invented a document for a missing file: %q", got.HTML)
+	}
+	if _, err := app.documentFor(path); err == nil {
+		t.Error("documentFor on a missing file returned no error")
+	}
+}
+
+func TestOpenPathStartsThePrerender(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "doc.md")
+	if err := os.WriteFile(path, []byte("# Opened\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	app := NewApp()
+	app.openPath(path)
+	if app.prerendered == nil {
+		t.Fatal("openPath did not start a pre-render")
+	}
+	doc := app.takePrerender(app.prerendered.path)
+	if doc == nil || !strings.Contains(doc.HTML, "Opened") {
+		t.Errorf("pre-render did not produce the opened document: %+v", doc)
 	}
 }

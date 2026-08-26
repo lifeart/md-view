@@ -42,7 +42,7 @@ func (a *App) serveShell(w http.ResponseWriter, r *http.Request, next http.Handl
 		rec.replay(w)
 		return
 	}
-	out, _ := injectInitialState(rec.body.Bytes(), a.renderInlineDoc(), a.inlineSettings())
+	out, inlined := injectInitialState(rec.body.Bytes(), a.renderInlineDoc(), a.inlineSettings())
 	h := w.Header()
 	for k, v := range rec.header {
 		if strings.EqualFold(k, "Content-Length") {
@@ -56,7 +56,14 @@ func (a *App) serveShell(w http.ResponseWriter, r *http.Request, next http.Handl
 	h.Del("Last-Modified")
 	w.WriteHeader(http.StatusOK)
 	_, _ = w.Write(out)
-	tracef("shell served (%d bytes)", len(out))
+	// Whether the document made it into the shell is the difference between the
+	// fast path and a second render delivered over an event, and it depends on
+	// an ordering nothing enforces: the odoc Apple Event (a same-machine event,
+	// ~13 ms after the LaunchServices check-in) has to beat WebKit's first
+	// navigation (~82-112 ms, because it spawns the WebContent process). The
+	// margin is large and structural, not luck — but it is unenforced, so trace
+	// it. scripts/perf-coldstart.sh reports how often the fast path was taken.
+	tracef("shell served (%d bytes, document inlined: %t)", len(out), inlined)
 }
 
 // renderInlineDoc renders the document to inline into the shell: the first
@@ -71,7 +78,7 @@ func (a *App) renderInlineDoc() *render.Doc {
 	resolved, err := a.scope.Check(p)
 	if err == nil {
 		var doc render.Doc
-		if doc, err = a.renderer.RenderFile(resolved); err == nil {
+		if doc, err = a.documentFor(resolved); err == nil {
 			return &doc
 		}
 	}
