@@ -84,6 +84,16 @@ Measured on an M-series Mac, medians of 7 interleaved runs per arm, time from th
 
 What is left is not ours: ~105 ms of LaunchServices + `exec` + dyld + Go package init (of which chroma's lexer and style registries are ~15 ms), ~95 ms of Wails setup and WKWebView creation, then the window server. The document itself paints ~130 ms after that, dominated by WKWebView's first navigation; serving the shell (render + inject) costs ~2.5 ms of it.
 
+Math and diagrams are the one thing that lands *after* first paint, and they
+are the reason the binary is ~16 MB rather than ~12 MB. Measured on the same
+Mac, installed and notarized, against `testdata/gfm.md` (four expressions and
+one diagram): the shell is served at ~235 ms — indistinguishable from a
+document with neither, because the chunks are not on the launch path — then
+KaTeX replaces the TeX ~64 ms later and Mermaid the diagram source ~180 ms
+after that. Warm opens commit in ~28 ms for that document and ~7 ms for plain
+prose, both far inside the 200 ms budget. A document containing no math and no
+diagram never fetches either chunk.
+
 `MDVIEW_TRACE=<file>` makes the binary append timestamped launch milestones to that file — LaunchServices launches have no stderr to attach to, so this is the only way to time them from inside the process. The frontend reports its own milestones (doc:open received, render committed, visibility changes, clear/restore) into the same file through the bound `Trace` method, so a warm open can be read end to end: `OnFileOpen` → `doc:open` → `RenderDocument` → commit → `PresentWindow`.
 
 Note: file associations only take effect for the **built/installed** app bundle, not under `wails dev` — during development, open files via `Cmd+O`/drag-and-drop or a CLI argument.
