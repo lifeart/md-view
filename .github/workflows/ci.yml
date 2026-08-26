@@ -74,6 +74,14 @@ jobs:
       - name: go test (post-build, exercises the built frontend/dist)
         run: go test ./...
 
+      # The Go tests stop at the HTML internal/render emits; everything after
+      # it — the copy-button pass and the lazy KaTeX/Mermaid passes — only runs
+      # in a browser. This drives the built bundle headless through both entry
+      # paths (cold-launch inline and doc:open) and a theme change. Two bugs
+      # got past a green build before it existed; see the script's header.
+      - name: Frontend end-to-end (built dist, headless Chrome)
+        run: scripts/e2e-frontend.sh
+
       - name: Committed wailsjs bindings are in sync with the build
         run: git diff --exit-code -- frontend/wailsjs
 

@@ -95,10 +95,15 @@ let current: settings.Settings = settings.Settings.createFrom({
 
 const darkQuery = window.matchMedia('(prefers-color-scheme: dark)');
 
+function isDarkTheme(): boolean {
+  return document.documentElement.dataset.theme === 'dark';
+}
+
 function applySettings(): void {
   const root = document.documentElement;
   const resolved =
     current.theme === 'system' ? (darkQuery.matches ? 'dark' : 'light') : current.theme;
+  const themeChanged = root.dataset.theme !== resolved;
   root.dataset.theme = resolved;
   root.style.setProperty('--font-size', `${current.fontSize}px`);
   root.style.setProperty('--content-width', `${current.contentWidth}ch`);
@@ -108,6 +113,7 @@ function applySettings(): void {
     root.style.removeProperty('--font-family');
   }
   syncAppearanceControls();
+  if (themeChanged) void redrawDiagramsForTheme();
 }
 
 function syncAppearanceControls(): void {
@@ -191,8 +197,31 @@ function captureScroll(): void {
   }
 }
 
+// findAnchor resolves a fragment to its element. Heading ids keep their unicode
+// letters (GitHub's slug rules — see internal/render/slug.go) while goldmark
+// percent-encodes the same text in the href, so `[x](#über-uns)` arrives here as
+// "%C3%BCber-uns" and must be decoded. The raw form is tried first so an id that
+// legitimately contains a '%' still wins.
+function findAnchor(anchor: string): HTMLElement | null {
+  const byName = (value: string): HTMLElement | null =>
+    document.getElementById(value) ??
+    // Pre-slug READMEs mark targets with `<a name="x">`, which browsers honour
+    // for fragment navigation but getElementById does not see.
+    content.querySelector<HTMLElement>(`a[name="${CSS.escape(value)}"]`);
+
+  const direct = byName(anchor);
+  if (direct) return direct;
+  try {
+    const decoded = decodeURIComponent(anchor);
+    if (decoded !== anchor) return byName(decoded);
+  } catch {
+    // Malformed percent-encoding: nothing more to try, fall through to null.
+  }
+  return null;
+}
+
 function scrollToAnchor(anchor: string, smooth: boolean): void {
-  const target = document.getElementById(anchor);
+  const target = findAnchor(anchor);
   if (!target) {
     showNotice(`No such section: #${anchor}`);
     return;
@@ -264,6 +293,12 @@ async function renderInto(path: string, token: number): Promise<boolean> {
       WindowSetTitle(`${doc.title} — MDv`);
       enhanceCodeBlocks();
     });
+    if (committed) {
+      // Math and diagrams load their libraries on demand, so they land a beat
+      // after the document paints. That is deliberate: the first paint stays on
+      // the render budget, and both leave readable source in place until then.
+      void enhanceRichContent(token);
+    }
     trace(
       committed
         ? `renderInto committed ${doc.path} (token ${token})`
@@ -352,8 +387,7 @@ async function goToHistoryEntry(index: number): Promise<void> {
   // Restore where the user left this entry. A recorded scroll position wins;
   // with none (scrollY 0) fall back to the entry's anchor, which keeps the
   // right section in view even if the document's layout changed meanwhile.
-  const anchorTarget =
-    entry.scrollY === 0 && entry.anchor ? document.getElementById(entry.anchor) : null;
+  const anchorTarget = entry.scrollY === 0 && entry.anchor ? findAnchor(entry.anchor) : null;
   if (anchorTarget) {
     anchorTarget.scrollIntoView({ behavior: 'auto', block: 'start' });
   } else {
@@ -483,11 +517,64 @@ document.addEventListener('copy', (e) => {
   e.preventDefault();
 });
 
+// ---------- math and diagrams ----------
+
+// Both renderers live in their own modules so Vite splits them into chunks that
+// are fetched only when a document needs them; a document with neither pays
+// nothing. enhanceRichContent re-checks the navigation token because the
+// dynamic imports are awaited, and a newer document may have committed since.
+async function enhanceRichContent(token: number): Promise<void> {
+  const math = content.querySelectorAll('code.language-math').length;
+  const diagrams = content.querySelectorAll('code.language-mermaid').length;
+  if (math === 0 && diagrams === 0) return;
+  trace(`enhanceRichContent math=${math} mermaid=${diagrams} (token ${token})`);
+  if (math > 0) {
+    try {
+      const { renderMath } = await import('./math');
+      if (token !== navSeq) return;
+      renderMath(content);
+      trace(`enhanceRichContent typeset ${content.querySelectorAll('.katex').length} math`);
+    } catch (err) {
+      showError(`Could not typeset math: ${errMsg(err)}`);
+    }
+  }
+  if (diagrams > 0) {
+    try {
+      const { renderDiagrams } = await import('./diagrams');
+      if (token !== navSeq) return;
+      await renderDiagrams(content, isDarkTheme());
+      trace(`enhanceRichContent drew ${content.querySelectorAll('.mermaid-diagram svg').length} diagrams`);
+    } catch (err) {
+      showError(`Could not render diagram: ${errMsg(err)}`);
+    }
+  }
+}
+
+// Mermaid bakes its palette into the SVG, so unlike the rest of the document a
+// diagram cannot follow a theme change through CSS variables — it has to be
+// drawn again. The DOM check comes first, before the import: applySettings runs
+// once at startup with a theme change to apply (the shell is served with
+// data-theme="system" until JS resolves it), and a document with no diagrams
+// should not fetch the module for it.
+async function redrawDiagramsForTheme(): Promise<void> {
+  if (!content.querySelector('.mermaid-diagram[data-source]')) return;
+  try {
+    const { renderDiagrams } = await import('./diagrams');
+    await renderDiagrams(content, isDarkTheme());
+  } catch (err) {
+    showError(`Could not redraw diagrams: ${errMsg(err)}`);
+  }
+}
+
 // ---------- code block copy buttons ----------
 
 function enhanceCodeBlocks(): void {
   for (const pre of Array.from(content.querySelectorAll('pre'))) {
     if (pre.parentElement?.classList.contains('codeblock')) continue;
+    // Math and diagram sources are about to be replaced by typeset output, so
+    // wrapping them would strand a copy button over nothing. This covers all
+    // three spellings: a $$…$$ block, a ```math fence and a ```mermaid fence.
+    if (pre.querySelector('code.language-math, code.language-mermaid')) continue;
     const wrapper = document.createElement('div');
     wrapper.className = 'codeblock';
     pre.replaceWith(wrapper);
@@ -648,6 +735,10 @@ async function init(): Promise<void> {
     historyIndex = 0;
     updateNavButtons();
     enhanceCodeBlocks();
+    // The cold-launch fast path never goes through renderInto, so it has to
+    // kick off math and diagrams itself — otherwise a double-clicked document
+    // shows its TeX and mermaid source until the reader navigates away and back.
+    void enhanceRichContent(navSeq);
   }
 
   try {

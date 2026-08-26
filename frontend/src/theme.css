@@ -23,6 +23,13 @@
   --kbd-bg: #f6f8fa;
   --shadow: 0 8px 24px rgba(31, 35, 40, 0.15);
 
+  /* GitHub alert accents (> [!NOTE] …) */
+  --alert-note: #0969da;
+  --alert-tip: #1a7f37;
+  --alert-important: #8250df;
+  --alert-warning: #9a6700;
+  --alert-caution: #cf222e;
+
   /* every element (inherited) is a valid Wails file-drop target */
   --wails-drop-target: drop;
 
@@ -44,6 +51,13 @@
   --error-border: #8e1519;
   --kbd-bg: #161b22;
   --shadow: 0 8px 24px rgba(1, 4, 9, 0.8);
+
+  /* GitHub alert accents (> [!NOTE] …) */
+  --alert-note: #4493f8;
+  --alert-tip: #3fb950;
+  --alert-important: #ab7df8;
+  --alert-warning: #d29922;
+  --alert-caution: #f85149;
   color-scheme: dark;
 }
 
@@ -66,6 +80,13 @@
     --error-border: #8e1519;
     --kbd-bg: #161b22;
     --shadow: 0 8px 24px rgba(1, 4, 9, 0.8);
+
+    /* GitHub alert accents (> [!NOTE] …) */
+    --alert-note: #4493f8;
+    --alert-tip: #3fb950;
+    --alert-important: #ab7df8;
+    --alert-warning: #d29922;
+    --alert-caution: #f85149;
     color-scheme: dark;
   }
 }
@@ -85,6 +106,13 @@
   --error-border: #dfa08c;
   --kbd-bg: #ece1c6;
   --shadow: 0 8px 24px rgba(67, 52, 34, 0.25);
+
+  /* GitHub alert accents (> [!NOTE] …) */
+  --alert-note: #205e9e;
+  --alert-tip: #3f6b2f;
+  --alert-important: #6b4a94;
+  --alert-warning: #8a6d3b;
+  --alert-caution: #9b3524;
   color-scheme: light;
 }
 
@@ -518,6 +546,200 @@ article .chroma {
 
 .codeblock .copy-btn:hover {
   color: var(--fg);
+}
+
+/* ---------- GitHub alerts (> [!NOTE] …) ---------- */
+
+/* Rendered by internal/render/alerts.go: the blockquote keeps its element but
+   gains markdown-alert markdown-alert-<kind>, and a title paragraph is
+   prepended. Colour comes from one --alert-* variable per kind so all four
+   themes stay in sync. */
+article .markdown-alert {
+  --alert-color: var(--alert-note);
+  border-left: 0.25em solid var(--alert-color);
+  color: inherit;
+  padding: 0.5em 1em;
+}
+
+article .markdown-alert-tip { --alert-color: var(--alert-tip); }
+article .markdown-alert-important { --alert-color: var(--alert-important); }
+article .markdown-alert-warning { --alert-color: var(--alert-warning); }
+article .markdown-alert-caution { --alert-color: var(--alert-caution); }
+
+article .markdown-alert-title {
+  display: flex;
+  align-items: center;
+  gap: 0.4em;
+  margin-bottom: 0.4em;
+  font-weight: 600;
+  line-height: 1;
+  color: var(--alert-color);
+}
+
+/* The icon is decorative and generated, so it stays out of copied text. */
+article .markdown-alert-title::before {
+  content: "";
+  width: 1em;
+  height: 1em;
+  flex: none;
+  background-color: currentColor;
+  mask-repeat: no-repeat;
+  mask-position: center;
+  mask-size: contain;
+  /* Octicons info, light-bulb, report, alert, stop — inlined as data URIs so
+     nothing is fetched (the CSP forbids remote assets anyway). */
+  mask-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16"><path d="M0 8a8 8 0 1 1 16 0A8 8 0 0 1 0 8Zm8-6.5a6.5 6.5 0 1 0 0 13 6.5 6.5 0 0 0 0-13ZM6.5 7.75A.75.75 0 0 1 7.25 7h1a.75.75 0 0 1 .75.75v2.75h.25a.75.75 0 0 1 0 1.5h-2a.75.75 0 0 1 0-1.5h.25v-2h-.25a.75.75 0 0 1-.75-.75ZM8 6a1 1 0 1 1 0-2 1 1 0 0 1 0 2Z"/></svg>');
+}
+
+article .markdown-alert-tip .markdown-alert-title::before {
+  mask-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16"><path d="M8 1.5c-2.363 0-4 1.69-4 3.75 0 .984.424 1.625.984 2.304l.214.253c.223.264.47.556.673.848.284.411.537.896.621 1.49a.75.75 0 0 1-1.484.211c-.04-.282-.163-.547-.37-.847a8.456 8.456 0 0 0-.542-.68c-.084-.1-.173-.205-.268-.32C3.201 7.75 2.5 6.766 2.5 5.25 2.5 2.31 4.863 0 8 0s5.5 2.31 5.5 5.25c0 1.516-.701 2.5-1.328 3.259-.095.115-.184.22-.268.319-.207.245-.383.453-.541.681-.208.3-.33.565-.37.847a.751.751 0 0 1-1.485-.212c.084-.593.337-1.078.621-1.489.203-.292.45-.584.673-.848.075-.088.147-.173.213-.253.561-.679.985-1.32.985-2.304 0-2.06-1.637-3.75-4-3.75ZM5.75 12h4.5a.75.75 0 0 1 0 1.5h-4.5a.75.75 0 0 1 0-1.5ZM6 15.25a.75.75 0 0 1 .75-.75h2.5a.75.75 0 0 1 0 1.5h-2.5a.75.75 0 0 1-.75-.75Z"/></svg>');
+}
+
+article .markdown-alert-important .markdown-alert-title::before {
+  mask-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16"><path d="M0 1.75C0 .784.784 0 1.75 0h12.5C15.216 0 16 .784 16 1.75v9.5A1.75 1.75 0 0 1 14.25 13H8.06l-2.573 2.573A1.458 1.458 0 0 1 3 14.543V13H1.75A1.75 1.75 0 0 1 0 11.25Zm1.75-.25a.25.25 0 0 0-.25.25v9.5c0 .138.112.25.25.25h2a.75.75 0 0 1 .75.75v2.19l2.72-2.72a.749.749 0 0 1 .53-.22h6.5a.25.25 0 0 0 .25-.25v-9.5a.25.25 0 0 0-.25-.25Zm7 2.25v2.5a.75.75 0 0 1-1.5 0v-2.5a.75.75 0 0 1 1.5 0ZM9 9a1 1 0 1 1-2 0 1 1 0 0 1 2 0Z"/></svg>');
+}
+
+article .markdown-alert-warning .markdown-alert-title::before,
+article .markdown-alert-caution .markdown-alert-title::before {
+  mask-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16"><path d="M6.457 1.047c.659-1.234 2.427-1.234 3.086 0l6.082 11.378A1.75 1.75 0 0 1 14.082 15H1.918a1.75 1.75 0 0 1-1.543-2.575Zm1.763.707a.25.25 0 0 0-.44 0L1.698 13.132a.25.25 0 0 0 .22.368h12.164a.25.25 0 0 0 .22-.368Zm.53 3.996v2.5a.75.75 0 0 1-1.5 0v-2.5a.75.75 0 0 1 1.5 0ZM9 11a1 1 0 1 1-2 0 1 1 0 0 1 2 0Z"/></svg>');
+}
+
+/* ---------- footnotes ---------- */
+
+article .footnotes {
+  margin-top: 2.5em;
+  font-size: 0.875em;
+  color: var(--fg-muted);
+}
+
+article .footnotes hr {
+  margin-bottom: 1em;
+}
+
+article .footnotes li:target,
+article sup:target {
+  /* Landing on a footnote should be obvious without a jarring colour. */
+  outline: 2px solid var(--accent);
+  outline-offset: 4px;
+  border-radius: 4px;
+}
+
+article .footnote-ref,
+article .footnote-backref {
+  text-decoration: none;
+}
+
+/* ---------- YAML front matter ---------- */
+
+/* Front matter is metadata, not prose: it renders as a table (as on GitHub)
+   but stays visually quieter than the document it introduces. */
+article table.frontmatter {
+  margin-bottom: 1.5em;
+  font-size: 0.875em;
+  color: var(--fg-muted);
+}
+
+article table.frontmatter th {
+  text-align: left;
+  white-space: nowrap;
+}
+
+article pre.frontmatter {
+  font-size: 0.8125em;
+  color: var(--fg-muted);
+}
+
+/* ---------- math ---------- */
+
+/* Before KaTeX loads (and forever, if it fails to) these hold the TeX source,
+   which is still readable. .katex-display gets its own centred block once the
+   typeset output replaces them. */
+article pre.math-display {
+  text-align: center;
+}
+
+article .katex-display {
+  margin: 1em 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding: 2px 0;
+}
+
+article .math-error {
+  color: var(--error-fg);
+  text-decoration: underline wavy var(--error-fg);
+}
+
+/* ---------- mermaid ---------- */
+
+article .mermaid-diagram {
+  margin: 1em 0;
+  text-align: center;
+  overflow-x: auto;
+}
+
+article .mermaid-diagram svg {
+  max-width: 100%;
+  height: auto;
+}
+
+/* ---------- details / summary ---------- */
+
+article details {
+  margin-bottom: 1em;
+  padding: 0.5em 1em;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+
+article details > summary {
+  cursor: pointer;
+  font-weight: 600;
+  margin: -0.5em -1em;
+  padding: 0.5em 1em;
+}
+
+article details[open] > summary {
+  margin-bottom: 0;
+  border-bottom: 1px solid var(--border);
+}
+
+/* ---------- misc GitHub HTML ---------- */
+
+article picture img,
+article video {
+  max-width: 100%;
+  height: auto;
+}
+
+/* An element the sanitizer removed (an <iframe>, an <svg>) can leave its
+   wrapping paragraph behind; without this it reads as an unexplained gap. */
+article p:empty {
+  display: none;
+}
+
+/* `<div align="center">` is the standard README centering idiom; the align
+   attribute alone no longer positions block children in modern engines. */
+article [align="center"] { text-align: center; }
+article [align="right"] { text-align: right; }
+article [align="left"] { text-align: left; }
+
+/* Like GitHub's: a muted wash behind unchanged text, so the highlight reads in
+   all four themes without inverting the foreground. */
+article mark {
+  background: color-mix(in srgb, var(--alert-warning) 28%, var(--bg));
+  color: inherit;
+  padding: 0 0.2em;
+  border-radius: 3px;
+}
+
+article dl dt {
+  font-weight: 600;
+  margin-top: 0.8em;
+}
+
+article dl dd {
+  margin-left: 1.5em;
 }
 
 /* ---------- view transitions ---------- */

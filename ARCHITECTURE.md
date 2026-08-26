@@ -15,12 +15,12 @@ A cross-platform markdown viewer (macOS first). Double-click a `.md` file → it
 ## Stack: Wails v2, with rendering done in Go
 
 **Shell:** [Wails v2](https://wails.io) (Go core + the OS's system webview — WKWebView on macOS, WebView2 on Windows, WebKitGTK on Linux). 
-**Markdown pipeline:** entirely on the Go side — `goldmark` with the GFM extension (parsing) → `chroma` via the goldmark-highlighting extension (syntax highlighting, class-based output) → `bluemonday` (HTML sanitization). 
-**Frontend:** a deliberately thin, framework-free layer — one HTML shell, one CSS file of theme variables, and a few KB of vanilla TypeScript for link interception, history, copy handling, and settings.
+**Markdown pipeline:** entirely on the Go side — `goldmark` (parsing) → `chroma` via the goldmark-highlighting extension (syntax highlighting, class-based output) → `bluemonday` (HTML sanitization). See [GitHub feature parity](#github-feature-parity) for what sits on top of goldmark's GFM. 
+**Frontend:** a deliberately thin, framework-free layer — one HTML shell, one CSS file of theme variables, and a few KB of vanilla TypeScript for link interception, history, copy handling, and settings. Two exceptions load lazily and only when a document needs them: KaTeX for math and Mermaid for diagrams.
 
 Why this shape:
 
-- **Launch speed.** The system webview is a shared OS framework (already warm in memory on macOS), and the binary is ~10 MB. Markdown→HTML happens in Go before the webview paints — no JS framework boot, no client-side parser on the critical path. `goldmark` (the engine behind Hugo) renders megabyte-sized documents in tens of milliseconds.
+- **Launch speed.** The system webview is a shared OS framework (already warm in memory on macOS), and the binary is ~16 MB (of which ~4 MB is the KaTeX and Mermaid chunks, which are never on the launch path). Markdown→HTML happens in Go before the webview paints — no JS framework boot, no client-side parser on the critical path. `goldmark` (the engine behind Hugo) renders megabyte-sized documents in tens of milliseconds.
 - **Light development.** `gopls` runs in a few hundred MB (vs 2–4 GB for rust-analyzer), `go build` takes seconds with no multi-GB target directory, and compile memory stays flat. Daily iteration on theming/UX is TS/CSS via `wails dev` hot reload with no Go rebuild at all.
 - **File associations are first-class on macOS.** Declared in `wails.json` under `info.fileAssociations` (ext, name, icon, `role: "Viewer"` → `CFBundleTypeRole`), delivered at runtime through the `Mac.OnFileOpen(filePaths []string)` callback — both at launch and while running.
 - **Native copy/selection behavior for free.** WKWebView gives macOS-native text selection, context menus, and services; we only override the copy payload to plain text.
@@ -96,6 +96,54 @@ Per-platform delivery of the opened file:
 | Windows | Registered by the NSIS installer | argv on launch; `SingleInstanceLock.OnSecondInstanceLaunch` routes repeat opens to the running instance |
 | Linux | No Wails bundling — manual `.desktop` + MIME XML shipped in a package (e.g. nfpm-built `.deb`) | argv / `OnSecondInstanceLaunch`, same as Windows |
 
+### GitHub feature parity
+
+The promise is that a `.md` file looks the way it looks on github.com. goldmark's
+`extension.GFM` covers tables, strikethrough, autolinks and task lists — roughly
+half of what GitHub actually renders. The rest is in `internal/render/`:
+
+| Feature | Where | Note |
+| --- | --- | --- |
+| Alerts (`> [!NOTE]`) | `alerts.go` | A paragraph transformer (runs during block parsing, while the marker is still a plain source line) tags the blockquote; a post-parse walk adds the title. Styling and the Octicon are CSS. |
+| Footnotes | `extension.Footnote` | Not part of `extension.GFM`. |
+| Math (`$…$`, `$$…$$`, ```` ```math ````) | `math.go` + `math.ts` | Go only *marks* it, emitting `<code class="language-math">` — the same hook GitHub emits — with the TeX source as text. KaTeX typesets it in the webview. |
+| Diagrams (```` ```mermaid ````) | `diagrams.ts` | goldmark already emits `<code class="language-mermaid">`; Mermaid replaces it. |
+| Emoji (`:tada:`) | `goldmark-emoji` | Rendered as unicode, not an `<img>` — no network, and it copies as text. |
+| YAML front matter | `frontmatter.go` | Peeled off before parsing (otherwise it becomes an `<hr>` plus a mangled setext heading) and shown as a table, as GitHub does. The YAML parse is deliberately shallow; anything it cannot read is shown verbatim. |
+| Heading anchors | `slug.go` | GitHub's slugger, not goldmark's: goldmark drops non-ASCII (`## Über uns` → `#ber-uns`) and slugs the *raw* line, so markup leaks into the id. |
+| Table column alignment | `render.go` | goldmark defaults to `style="text-align:…"`, which bluemonday strips — so `WithTableCellAlignMethod(TableCellAlignAttribute)` emits `align` instead. |
+| `<kbd>`, `<picture>`, `<div align>`, `<ol start>`, `<a name>` | `buildPolicy` | All silently eaten by `bluemonday.UGCPolicy` before; all common in real READMEs. |
+| `<video>` / `<audio>` | `buildPolicy` | `src`/`poster` go through the same scope-checked asset route as images (`http.ServeFile` handles range requests). `autoplay` is deliberately not allowed. |
+
+Two rules shape the split between Go and the webview:
+
+- **Nothing that can be done in Go happens in JS.** Only math and diagrams need a
+  library, and both would blow the launch budget if they were on the critical
+  path. So Go emits a marked-up, *readable* placeholder (the TeX or diagram
+  source), the document paints without waiting, and `enhanceRichContent` imports
+  the library afterwards — only when the document contains one. If the import
+  never lands, the reader still sees the source rather than a blank space.
+- **Both entry paths must enhance.** A document reaches the DOM either through
+  `renderInto` (a `doc:open` into a live window) or inlined into the shell by the
+  Go middleware on a cold launch. `enhanceRichContent` is called from *both*; a
+  fix that only covers `renderInto` means every double-clicked document shows raw
+  TeX. `enhanceCodeBlocks` skips the `<pre>` blocks holding math and diagrams for
+  the same reason — it runs first, and the copy button it adds would be stranded
+  when the typeset output replaces the block.
+
+Both of those are real bugs that got past `go test`, `tsc` and a green build,
+because the Go tests stop at the HTML `internal/render` emits and nothing else
+ran the bundle. `scripts/e2e-frontend.sh` closes that seam: it serves the built
+`frontend/dist` with the Wails binding surface stubbed, drives it headless
+through the cold-launch inline path, a `doc:open`, and a theme change, and
+asserts what the reader would actually see. It runs in CI after `wails build`.
+
+Untrusted input reaches two libraries in the webview rather than the Go
+sanitizer, so both are pinned rather than left on their defaults: KaTeX with
+`trust: false` (no `\href`/`\includegraphics`, which would build a link or an
+image downstream of bluemonday), plus `maxExpand`/`maxSize` against macro and
+layout bombs; Mermaid with `securityLevel: 'strict'` and `maxTextSize`/`maxEdges`.
+
 ### Link handling rules
 
 All clicks are intercepted in `main.ts` and routed:
@@ -129,7 +177,7 @@ An in-app stack per window: `{ path, scrollY, anchor }`. Back/forward via toolba
 
 Rendered markdown is untrusted input:
 
-- `bluemonday` strips scripts, iframes, event handlers, and dangerous URLs from the rendered HTML (raw HTML in markdown is sanitized, not passed through). The policy allows chroma's `span` classes and heading-anchor ids.
+- `bluemonday` strips scripts, iframes, event handlers, and dangerous URLs from the rendered HTML (raw HTML in markdown is sanitized, not passed through). The policy is widened only where GitHub parity requires it — chroma's classes, alert/footnote/math classes, heading and footnote ids, `<kbd>`, `<picture>`, `align`, `<ol start>`, `<a name>` — never for `style` or event handlers. One attribute needs care: bluemonday policies `src`/`href` as URLs but does **not** recognise `srcset`, so `render.srcsetPattern` does that job, admitting only http(s) URLs and scheme-less, non-protocol-relative paths.
 - Strict CSP in the webview: no remote scripts/styles; remote images allowed (settable), everything else local.
 - Filesystem access is scoped: the asset server and `RenderDocument` refuse any path outside the opened document's directory tree (extended per navigation) — the webview can never read arbitrary paths.
 - Bound-method surface is minimal: `RenderDocument(path)`, `ResolveLink(base, href)`, `GetSettings()/SetSettings()`, `Ready(inlinedPath)`, `OpenFileDialog()`, `OpenExternal(url)` (http/https only), `OpenWithSystemDefault(path)` (scope-checked, executables refused and revealed instead), `PresentWindow()`, `IsWindowHidden()`, and `Trace(msg)` (appends a frontend milestone to the `MDVIEW_TRACE` file; no-op otherwise).
@@ -139,14 +187,20 @@ Rendered markdown is untrusted input:
 ```
 md-view/
 ├── main.go              # bootstrap, OnFileOpen, single instance, argv
+├── scripts/
+│   ├── e2e-warm-open.sh # the OS un-hide vs. doc:open race, against the real app
+│   └── e2e-frontend.sh  # the built bundle, headless, both document entry paths
 ├── internal/
-│   ├── render/          # goldmark(GFM) → chroma → bluemonday
+│   ├── render/          # goldmark(GFM+) → chroma → bluemonday
+│   │                    #   alerts.go, math.go, slug.go, frontmatter.go
 │   ├── links/           # path resolution, scope checks, doc-asset routes
 │   └── settings/
 ├── frontend/
 │   ├── index.html       # shell + toolbar
 │   ├── theme.css        # variables + default light theme
-│   └── main.ts          # links, history, copy, settings application
+│   ├── main.ts          # links, history, copy, settings application
+│   ├── math.ts          # lazy KaTeX  } imported only when the document
+│   └── diagrams.ts      # lazy Mermaid} actually contains one
 ├── wails.json           # info.fileAssociations (md, markdown, mdown, mkd)
 └── ARCHITECTURE.md
 ```

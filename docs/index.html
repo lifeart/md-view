@@ -41,7 +41,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>MDv — a fast markdown viewer for macOS</title>
-<meta name="description" content="Double-click a markdown file. Read it. MDv is a native macOS markdown viewer: rendered in Go before the webview paints, ~0.2 s from double-click to a readable document, ~13 MB, no bundled browser.">
+<meta name="description" content="Double-click a markdown file. Read it. MDv is a native macOS markdown viewer: rendered in Go before the webview paints, ~0.2 s from double-click to a readable document, ~16 MB, no bundled browser.">
 <meta name="color-scheme" content="light dark">
 <link rel="icon" href="icon.svg" type="image/svg+xml">
 <link rel="stylesheet" href="style.css">
@@ -130,7 +130,7 @@
         For Apple silicon Macs (arm64) — there is no Intel build. The DMG is signed with a
         Developer ID certificate and notarized by Apple, so it opens without a Gatekeeper
         prompt: drag <strong>MDv</strong> into Applications and double-click any
-        <span class="code">.md</span> file. About 5&nbsp;MB to download, ~13&nbsp;MB on disk.
+        <span class="code">.md</span> file. About 7&nbsp;MB to download, ~16&nbsp;MB on disk.
       </p>
 
       <figure style="margin-top:44px">
@@ -257,6 +257,15 @@ README for how they are produced.</p>
              <span class="kbd">⌘-</span>) and column width adjustable — and remembered.</p>
         </li>
         <li>
+          <h3>Renders what GitHub renders</h3>
+          <p>Tables with column alignment, task lists, footnotes,
+             <span class="code">&gt; [!NOTE]</span> alerts, <span class="code">:tada:</span>
+             emoji, YAML front matter, <span class="code">&lt;details&gt;</span>,
+             <span class="code">$…$</span> math and <span class="code">mermaid</span>
+             diagrams — with GitHub's own heading anchors, so a copied table of contents
+             still lands where it should.</p>
+        </li>
+        <li>
           <h3>Navigates between files</h3>
           <p>Relative links to other markdown files open in place, with back/forward
              (<span class="kbd">⌘[</span> / <span class="kbd">⌘]</span>), scroll restoration
@@ -276,8 +285,9 @@ README for how they are produced.</p>
         </li>
         <li>
           <h3>Stays small</h3>
-          <p>Go + Wails v2 + the system WKWebView: ~13&nbsp;MB on disk, no bundled browser,
-             no JS framework. It does not edit, and it does not want to be your IDE.</p>
+          <p>Go + Wails v2 + the system WKWebView: ~16&nbsp;MB on disk, no bundled browser,
+             no JS framework. Math and diagram libraries load only for documents that
+             use them. It does not edit, and it does not want to be your IDE.</p>
         </li>
       </ul>
       <p class="small muted" style="margin-top:28px">
