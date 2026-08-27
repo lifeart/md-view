@@ -41,7 +41,7 @@ All three screenshots are the app itself rendering [`docs/screenshots/demo.md`](
 1. Open the DMG and drag **MDv** into **Applications**.
 2. Double-click to launch. A DMG built through `scripts/sign.sh` + `scripts/notarize.sh` (Developer ID + notarized) opens straight away on any Mac; an ad-hoc or development-signed one needs right-click → **Open** once.
 
-The very first launch after installing may be slightly slower while macOS verifies the new binary; after that, double-clicking a markdown file shows the rendered window in ~0.2 s.
+The very first launch after installing may be slightly slower while macOS verifies the new binary. After that a cold launch shows the rendered window in ~0.4 s — most of it macOS starting AppKit and WebKit — and every subsequent open goes into the resident instance in ~60 ms. All of these are measured from the Finder gesture by `scripts/perf-coldstart.sh`; see [ARCHITECTURE.md](ARCHITECTURE.md) for the full breakdown.
 
 **MDv stays running after you close its window** (macOS convention — `Cmd+Q` quits). While it is resident, opening a markdown file skips process spawn and WebKit init entirely. To make even the *first* open of a session warm, install the optional login prewarm — it starts MDv hidden when you log in:
 

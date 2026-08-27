@@ -41,7 +41,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>MDv — a fast markdown viewer for macOS</title>
-<meta name="description" content="Double-click a markdown file. Read it. MDv is a native macOS markdown viewer: rendered in Go before the webview paints, ~0.2 s from double-click to a readable document, ~16 MB, no bundled browser.">
+<meta name="description" content="Double-click a markdown file. Read it. MDv is a native macOS markdown viewer: rendered in Go before the webview paints, opens in ~60 ms once resident, ~0.4 s on a cold launch, ~16 MB, no bundled browser.">
 <meta name="color-scheme" content="light dark">
 <link rel="icon" href="icon.svg" type="image/svg+xml">
 <link rel="stylesheet" href="style.css">
@@ -189,14 +189,14 @@ shell before the webview paints, so the <strong>first paint is the finished docu
 </thead>
 <tbody>
 <tr>
-<td>Cold launch to window</td>
-<td>&lt; 250 ms</td>
-<td>~200 ms</td>
+<td>Cold launch to first paint</td>
+<td>&lt; 500 ms</td>
+<td>~420 ms</td>
 </tr>
 <tr>
 <td>Warm open (resident)</td>
 <td>&lt; 200 ms</td>
-<td>~150 ms</td>
+<td>~60 ms</td>
 </tr>
 <tr>
 <td>In-app navigation</td>
@@ -246,9 +246,11 @@ README for how they are produced.</p>
       <ul class="features">
         <li>
           <h3>Opens before you notice</h3>
-          <p>~0.2&nbsp;s from double-click to a rendered window, cold; well under 150&nbsp;ms
-             into the resident instance. Markdown becomes HTML in Go <em>before</em> the
-             webview paints, so the first paint is the finished document.</p>
+          <p>~60&nbsp;ms from double-click to the document, into the resident instance — which
+             is every open after the first, because MDv stays running. A cold launch is
+             ~0.4&nbsp;s, and about 40% of that is macOS starting AppKit and WebKit before
+             MDv runs a line. Markdown becomes HTML in Go <em>before</em> the webview
+             paints, so the first paint is the finished document.</p>
         </li>
         <li>
           <h3>Reads like a document</h3>
