@@ -28,6 +28,24 @@ case "$TARGET" in
   codesign --verify --strict "$TARGET"
   ;;
 *)
+  # Nested code must be signed before the bundle that contains it: the outer
+  # signature seals a hash of the inner one, so signing outside-in produces a
+  # bundle that verifies today and breaks the moment anything re-reads it.
+  # `codesign --deep` is Apple-deprecated for signing (it is fine for
+  # verifying), so walk the plug-ins explicitly. Today that is the Quick Look
+  # extension from scripts/build-quicklook.sh.
+  for nested in "$TARGET"/Contents/PlugIns/*.appex; do
+    [ -e "$nested" ] || continue
+    echo "signing nested: ${nested##*/}"
+    ENTS="$(dirname "$0")/../quicklook/MDvQuickLook/MDvQuickLook.entitlements"
+    if [ -f "$ENTS" ]; then
+      codesign --force --options runtime --timestamp \
+        --entitlements "$ENTS" --sign "$IDENTITY" "$nested"
+    else
+      codesign --force --options runtime --timestamp --sign "$IDENTITY" "$nested"
+    fi
+    codesign --verify --strict "$nested"
+  done
   codesign --force --options runtime --timestamp --sign "$IDENTITY" "$TARGET"
   codesign --verify --deep --strict "$TARGET"
   ;;

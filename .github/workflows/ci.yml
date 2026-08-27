@@ -74,6 +74,12 @@ jobs:
       - name: go test (post-build, exercises the built frontend/dist)
         run: go test ./...
 
+      # Built here too, not just in the release workflow: it links a Go
+      # c-archive into a Swift app extension, which is the part of the tree
+      # most likely to break silently on a toolchain bump.
+      - name: Build the Quick Look extension
+        run: scripts/build-quicklook.sh
+
       # The Go tests stop at the HTML internal/render emits; everything after
       # it — the copy-button pass and the lazy KaTeX/Mermaid passes — only runs
       # in a browser. This drives the built bundle headless through both entry
@@ -84,6 +90,11 @@ jobs:
 
       - name: Committed wailsjs bindings are in sync with the build
         run: git diff --exit-code -- frontend/wailsjs
+
+      - name: internal/quicklook/styles.css is in sync with its generator
+        run: |
+          go run ./tools/gen-preview-css
+          git diff --exit-code -- internal/quicklook/styles.css
 
       - name: frontend/src/chroma.css is in sync with its generator
         run: |

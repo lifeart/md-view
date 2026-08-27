@@ -98,6 +98,14 @@ Two corrections to what this document used to claim. Go package init is **9.6 ms
 
 The 50 ms spent waiting for the Apple Event is **slack, not latency**. `loadRequest` is issued before the event arrives, so the document path is known 69 ms before the webview asks for it. Closing that gap saves nothing; filling it is what `prerender.go` does.
 
+### Quick Look: the one genuinely fast path
+
+Cold launch cannot be made fast, but it can be made unnecessary. `Contents/PlugIns/MDvQuickLook.appex` renders a markdown file for Finder's Space bar, and the Quick Look host process is already running — so a preview skips LaunchServices, dyld, AppKit and WebKit's first navigation entirely. Rendering a 2.3 KB document into 49 KB of HTML measures **13 ms** inside the extension. (The end-to-end Finder gesture is not measurable from a shell: driving it with `qlmanage` costs ~270 ms of the CLI tool's own startup, warm or cold, which Finder never pays.)
+
+The extension links `internal/render` as a C archive rather than reimplementing markdown, because two renderers that could disagree about a document would be worse than no preview. Its output is one self-contained file — images become `data:` URIs — for two reasons: the sandbox grants read access only to the previewed file, and Quick Look runs no JavaScript, so math and diagrams stay as source.
+
+Three things are load-bearing and each one silently disables the feature if missing: the sandbox entitlement (`pkd` refuses to register an unsandboxed preview extension — signed, valid, embedded and invisible), `CFBundleSupportedPlatforms`, and signing the extension *before* the app that contains it.
+
 **A 3× cold start is not reachable on this stack.** AppKit's first `NSApplication` init (~40 ms), WKWebView construction (~36 ms) and WebKit's first-navigation process spawn (~82 ms) are ~158 ms of platform floor before a line of MDv's own code runs, against a ~140 ms target. MDv's controllable share of the 421 ms is roughly 22 ms. The answer to "open faster" is the resident instance, not a faster cold path: a warm open is **52–68 ms** to a presented window, of which ~45 ms is again the OS delivering the Apple Event.
 
 Math and diagrams are the one thing that lands *after* first paint, and they
@@ -214,6 +222,9 @@ Rendered markdown is untrusted input:
 md-view/
 ├── main.go              # bootstrap, OnFileOpen, single instance, argv
 ├── prerender.go         # render into the slack before the webview asks
+├── quicklook/
+│   ├── bridge/          # internal/render as a C archive (-buildmode=c-archive)
+│   └── MDvQuickLook/    # the Swift preview extension that links it
 ├── scripts/
 │   ├── e2e-warm-open.sh # the OS un-hide vs. doc:open race, against the real app
 │   ├── e2e-frontend.sh  # the built bundle, headless, both document entry paths
@@ -221,6 +232,7 @@ md-view/
 ├── internal/
 │   ├── render/          # goldmark(GFM+) → chroma → bluemonday
 │   │                    #   alerts.go, math.go, slug.go, frontmatter.go
+│   ├── quicklook/       # one self-contained HTML file for the Space-bar preview
 │   ├── links/           # path resolution, scope checks, doc-asset routes
 │   └── settings/
 ├── frontend/

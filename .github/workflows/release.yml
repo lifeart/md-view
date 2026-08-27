@@ -55,6 +55,12 @@ jobs:
       - name: wails build
         run: wails build
 
+      # The Quick Look preview extension is not something `wails build` knows
+      # about, so it is built and embedded afterwards — and necessarily before
+      # signing, since nested code must be signed before its container.
+      - name: Build the Quick Look extension
+        run: scripts/build-quicklook.sh
+
       - name: go test
         run: go test ./...
 

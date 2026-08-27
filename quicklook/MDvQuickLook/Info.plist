@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>CFBundleDevelopmentRegion</key>
+	<string>en</string>
+	<key>CFBundleDisplayName</key>
+	<string>MDv Markdown Preview</string>
+	<key>CFBundleExecutable</key>
+	<string>MDvQuickLook</string>
+	<key>CFBundleIdentifier</key>
+	<string>com.wails.md-view.quicklook</string>
+	<key>CFBundleInfoDictionaryVersion</key>
+	<string>6.0</string>
+	<key>CFBundleName</key>
+	<string>MDvQuickLook</string>
+	<key>CFBundlePackageType</key>
+	<string>XPC!</string>
+	<!-- pluginkit will not register an extension that does not say which
+	     platform it is for; without this the appex is signed, valid, embedded
+	     and completely invisible to Quick Look. -->
+	<key>CFBundleSupportedPlatforms</key>
+	<array>
+		<string>MacOSX</string>
+	</array>
+	<key>CFBundleShortVersionString</key>
+	<string>0.0.0</string>
+	<key>CFBundleVersion</key>
+	<string>0.0.0</string>
+	<key>LSMinimumSystemVersion</key>
+	<string>12.0</string>
+	<key>NSExtension</key>
+	<dict>
+		<key>com.apple.showsInExtensionsManager</key>
+		<false/>
+		<key>NSExtensionPointIdentifier</key>
+		<string>com.apple.quicklook.preview</string>
+		<key>NSExtensionPrincipalClass</key>
+		<string>MDvQuickLook.PreviewProvider</string>
+		<key>NSExtensionAttributes</key>
+		<dict>
+			<!-- Matching the shape of Apple's own data-based preview
+			     extensions; ExtensionFoundation builds the host-side context
+			     from these and is not forgiving about what it expects. -->
+			<key>QLSupportsSearchableItems</key>
+			<false/>
+			<!-- Data-based previews: the extension returns bytes, not a view,
+			     which is what lets all the work stay in Go. -->
+			<key>QLIsDataBasedPreview</key>
+			<true/>
+			<key>QLSupportedContentTypes</key>
+			<array>
+				<string>net.daringfireball.markdown</string>
+			</array>
+		</dict>
+	</dict>
+</dict>
+</plist>

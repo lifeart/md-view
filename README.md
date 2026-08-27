@@ -49,6 +49,22 @@ The very first launch after installing may be slightly slower while macOS verifi
 scripts/prewarm.sh install    # scripts/prewarm.sh remove to undo
 ```
 
+## Preview with the Space bar
+
+MDv installs a Quick Look extension, so selecting a markdown file in Finder and
+pressing **Space** shows it rendered rather than as raw text — no app launch at
+all. The preview runs MDv's own pipeline (`internal/render`, compiled into the
+extension as a C archive), so it cannot disagree with the window you get when
+you open the file.
+
+It is a preview, not the app: Quick Look does not execute JavaScript, so math
+and Mermaid diagrams appear as their source. Everything else — GFM, alerts,
+footnotes, syntax highlighting, images — renders exactly as in MDv.
+
+The extension registers itself when macOS scans the installed app. If Space
+still shows plain text, macOS has not picked it up yet; `qlmanage -r` forces a
+rescan.
+
 ## Make it the default for all markdown files
 
 File associations are registered by the app bundle, but macOS still needs you to pick the *default* handler once. Two ways:
@@ -82,7 +98,16 @@ scripts/e2e-frontend.sh    # after a frontend build: runs the built dist headles
                            # doc:open) — none of which the Go tests can see
 scripts/perf-coldstart.sh  # after wails build: launch breakdown, timed from the Finder gesture
                            # (not from the app's first trace line, which flatters it by a third)
+scripts/build-quicklook.sh # after wails build: builds the Quick Look extension and embeds it in
+                           # the bundle (wails build knows nothing about app extensions). Run
+                           # scripts/sign.sh after it — nested code signs before its container.
 ```
+
+The Quick Look extension only loads from an app macOS has registered, so it
+cannot be tested from `build/bin`: install the bundle to `/Applications` first.
+It logs what it rendered, which is the only way to see inside a sandboxed
+extension — `/usr/bin/log stream --level debug --predicate '"'"'subsystem == "com.wails.md-view"'"'"'`
+(the full path matters: `log` is also a zsh builtin).
 
 Note: file associations only work for the built, installed bundle — under `wails dev`, open files via `Cmd+O`, drag-and-drop, or a CLI argument (`wails dev -appargs /path/to/doc.md`). Quit any installed MDv before starting a dev session: the single-instance lock makes the second launch hand its arguments to the resident instance and exit, which ends `wails dev` immediately.
 
