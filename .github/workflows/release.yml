@@ -23,14 +23,14 @@ jobs:
     runs-on: macos-15
     timeout-minutes: 45
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-go@v5
+      - uses: actions/setup-go@v7
         with:
           go-version-file: go.mod
           cache-dependency-path: go.sum
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: npm
@@ -124,7 +124,7 @@ jobs:
 
       - name: Import the Developer ID certificate
         if: steps.signing.outputs.enabled == 'true'
-        uses: apple-actions/import-codesign-certs@v3
+        uses: apple-actions/import-codesign-certs@v7
         with:
           p12-file-base64: ${{ secrets.MACOS_CERTIFICATE }}
           p12-password: ${{ secrets.MACOS_CERTIFICATE_PWD }}
@@ -178,7 +178,7 @@ jobs:
       - name: Add a stable-named copy for latest-download links
         run: cp "build/bin/md-view-$VERSION.dmg" build/bin/MDv.dmg
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: md-view-${{ env.VERSION }}-macos-arm64-dmg
           path: build/bin/md-view-${{ env.VERSION }}.dmg
@@ -188,7 +188,7 @@ jobs:
       # state what this particular DMG is, not what it might be.
       - name: Publish the GitHub release (signed and notarized)
         if: steps.signing.outputs.enabled == 'true'
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           files: |
             build/bin/md-view-${{ env.VERSION }}.dmg
@@ -206,7 +206,7 @@ jobs:
 
       - name: Publish the GitHub release (unsigned)
         if: steps.signing.outputs.enabled != 'true'
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           files: |
             build/bin/md-view-${{ env.VERSION }}.dmg
