@@ -12,7 +12,7 @@
   },
   "info": {
     "productName": "MDv",
-    "productVersion": "0.2.1",
+    "productVersion": "0.3.0",
     "comments": "A fast markdown viewer",
     "fileAssociations": [
       {
