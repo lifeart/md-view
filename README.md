@@ -43,11 +43,15 @@ All three screenshots are the app itself rendering [`docs/screenshots/demo.md`](
 
 The very first launch after installing may be slightly slower while macOS verifies the new binary. After that a cold launch shows the rendered window in ~0.4 s — most of it macOS starting AppKit and WebKit — and every subsequent open goes into the resident instance in ~60 ms. All of these are measured from the Finder gesture by `scripts/perf-coldstart.sh`; see [ARCHITECTURE.md](ARCHITECTURE.md) for the full breakdown.
 
-**MDv stays running after you close its window** (macOS convention — `Cmd+Q` quits). While it is resident, opening a markdown file skips process spawn and WebKit init entirely. To make even the *first* open of a session warm, install the optional login prewarm — it starts MDv hidden when you log in:
+**MDv stays running after you close its window** (macOS convention — `Cmd+Q` quits). While it is resident, opening a markdown file skips process spawn and WebKit init entirely — ~60 ms instead of ~0.4 s.
+
+That covers every open *except the first one of a session*. To cover that too, let MDv start hidden when you log in. It asks once, the first time you open a document, and the answer is remembered; you can change it any time under **Aa** → **Keep ready**, or from a script:
 
 ```sh
-scripts/prewarm.sh install    # scripts/prewarm.sh remove to undo
+scripts/prewarm.sh install    # remove | status
 ```
+
+It is **off by default**. Turning it on registers a login item under MDv's own name, so it appears in System Settings › General › Login Items and can be revoked there. The cost is a resident app using memory while it waits for you.
 
 ## Preview with the Space bar
 

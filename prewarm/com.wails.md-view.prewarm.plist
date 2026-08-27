@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!-- The login agent SMAppService registers when the reader opts into
+	     prewarming. It starts MDv with --hidden: the app builds its whole
+	     NSApplication/NSWindow/WKWebView stack at login and keeps the window
+	     off screen, so the ~330 ms a cold launch spends on that is paid once,
+	     when nobody is waiting, and every later open is a warm one (~60 ms).
+
+	     The Label must match the file name, and the file must live at
+	     Contents/Library/LaunchAgents/ inside the app bundle —
+	     scripts/embed-prewarm-agent.sh puts it there. -->
+	<key>Label</key>
+	<string>com.wails.md-view.prewarm</string>
+	<key>ProgramArguments</key>
+	<array>
+		<string>/Applications/MDv.app/Contents/MacOS/md-view</string>
+		<string>--hidden</string>
+	</array>
+	<key>RunAtLoad</key>
+	<true/>
+	<!-- Not KeepAlive: if the reader quits MDv, it stays quit until the next
+	     login. Respawning an app someone just quit is hostile. -->
+	<key>KeepAlive</key>
+	<false/>
+	<key>ProcessType</key>
+	<string>Interactive</string>
+	<key>LimitLoadToSessionType</key>
+	<string>Aqua</string>
+</dict>
+</plist>

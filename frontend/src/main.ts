@@ -9,13 +9,16 @@ import {
   OpenWithSystemDefault,
   PresentWindow,
   Ready,
+  GetPrewarmState,
+  MarkPrewarmAsked,
   RenderDocument,
   ResolveLink,
+  SetPrewarm,
   SetSettings,
   Trace,
 } from '../wailsjs/go/main/App';
 import { ClipboardSetText, EventsOn, WindowSetTitle } from '../wailsjs/runtime/runtime';
-import { settings } from '../wailsjs/go/models';
+import { main, settings } from '../wailsjs/go/models';
 
 // ---------- helpers ----------
 
@@ -79,6 +82,12 @@ const sizeValue = el<HTMLSpanElement>('size-value');
 const widthRange = el<HTMLInputElement>('set-width');
 const widthValue = el<HTMLSpanElement>('width-value');
 const linkMenu = el<HTMLDivElement>('link-menu');
+const prewarmRow = el<HTMLDivElement>('prewarm-row');
+const prewarmToggle = el<HTMLInputElement>('set-prewarm');
+const prewarmNote = el<HTMLSpanElement>('prewarm-note');
+const prewarmOffer = el<HTMLDivElement>('prewarm-offer');
+const prewarmYes = el<HTMLButtonElement>('prewarm-yes');
+const prewarmNo = el<HTMLButtonElement>('prewarm-no');
 const linkCopy = el<HTMLButtonElement>('link-copy');
 
 // ---------- error banner ----------
@@ -114,6 +123,7 @@ let current: settings.Settings = settings.Settings.createFrom({
   fontFamily: '',
   fontSize: 16,
   contentWidth: 72,
+  prewarmAsked: false,
 });
 
 const darkQuery = window.matchMedia('(prefers-color-scheme: dark)');
@@ -196,6 +206,86 @@ btnAppearance.addEventListener('click', (e) => {
   e.stopPropagation();
   appearanceMenu.hidden = !appearanceMenu.hidden;
 });
+
+// ---------- keeping MDv ready (login prewarm) ----------
+
+// A cold launch cannot be made fast — AppKit and WebKit account for most of it
+// before MDv runs a line — so the honest way to make opening fast is to make
+// cold launches rare. This registers a login agent that starts MDv hidden, via
+// SMAppService, which puts it in System Settings > Login Items under MDv's own
+// name where the reader can revoke it.
+//
+// It is offered once, never assumed, and defaults to off.
+
+function describePrewarm(state: main.PrewarmState): string {
+  if (state.needsApproval) return 'Allow it in System Settings › Login Items.';
+  return state.enabled ? 'MDv starts hidden at login.' : 'Opens are ~0.4 s from cold.';
+}
+
+async function refreshPrewarmControl(): Promise<void> {
+  try {
+    const state = await GetPrewarmState();
+    prewarmRow.hidden = !state.supported;
+    prewarmToggle.checked = state.enabled;
+    prewarmNote.textContent = describePrewarm(state);
+  } catch (err) {
+    prewarmRow.hidden = true;
+    showError(`Could not read the background-start setting: ${errMsg(err)}`);
+  }
+}
+
+async function applyPrewarm(enable: boolean): Promise<void> {
+  try {
+    const state = await SetPrewarm(enable);
+    prewarmToggle.checked = state.enabled;
+    prewarmNote.textContent = describePrewarm(state);
+    if (state.needsApproval) {
+      showNotice('Allow MDv in System Settings › General › Login Items to finish.');
+    }
+  } catch (err) {
+    // Put the control back where it was: the system rejected the change, and a
+    // toggle that shows the state the user wanted rather than the real one is
+    // worse than no toggle.
+    await refreshPrewarmControl();
+    showError(`Could not change the background-start setting: ${errMsg(err)}`);
+  }
+}
+
+prewarmToggle.addEventListener('change', () => {
+  void applyPrewarm(prewarmToggle.checked);
+});
+
+function dismissPrewarmOffer(): void {
+  prewarmOffer.hidden = true;
+  MarkPrewarmAsked().catch((err) => {
+    // Not silent: if this fails the offer will reappear next launch, and the
+    // reader deserves to know why rather than being nagged.
+    showError(`Could not record your choice: ${errMsg(err)}`);
+  });
+}
+
+prewarmYes.addEventListener('click', () => {
+  void applyPrewarm(true);
+  dismissPrewarmOffer();
+});
+prewarmNo.addEventListener('click', dismissPrewarmOffer);
+
+// The offer waits for a document to be on screen and then some: it is a
+// question about startup, and asking it during startup would be both ironic
+// and rude.
+async function maybeOfferPrewarm(): Promise<void> {
+  if (current.prewarmAsked) return;
+  try {
+    const state = await GetPrewarmState();
+    if (!state.supported || state.enabled) return;
+  } catch {
+    return; // cannot tell; do not ask
+  }
+  window.setTimeout(() => {
+    if (!currentPath) return; // nothing open — nothing to make faster
+    prewarmOffer.hidden = false;
+  }, 2500);
+}
 
 // ---------- history ----------
 
@@ -787,6 +877,9 @@ async function init(): Promise<void> {
   } catch (err) {
     showError(`Startup handshake failed: ${errMsg(err)}`);
   }
+
+  void refreshPrewarmControl();
+  void maybeOfferPrewarm();
 }
 
 void init();

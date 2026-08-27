@@ -536,3 +536,25 @@ func TestOpenPathStartsThePrerender(t *testing.T) {
 		t.Errorf("pre-render did not produce the opened document: %+v", doc)
 	}
 }
+
+func TestPrewarmFlagParsing(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		args []string
+		want string
+		ok   bool
+	}{
+		{"equals form", []string{"--prewarm=on"}, "on", true},
+		{"space form", []string{"--prewarm", "off"}, "off", true},
+		{"bare defaults to status", []string{"--prewarm"}, "status", true},
+		{"absent", []string{"--hidden", "a.md"}, "", false},
+		{"not confused by a path", []string{"/tmp/prewarm.md"}, "", false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			got, ok := prewarmFlag(tc.args)
+			if ok != tc.ok || got != tc.want {
+				t.Errorf("prewarmFlag(%q) = %q,%v want %q,%v", tc.args, got, ok, tc.want, tc.ok)
+			}
+		})
+	}
+}

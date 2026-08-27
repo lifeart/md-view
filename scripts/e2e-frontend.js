@@ -20,7 +20,12 @@
 
   window.go = { main: { App: {
     GetSettings: async function () {
-      return { theme: 'light', fontFamily: '', fontSize: 16, contentWidth: 72 };
+      // prewarmAsked: true keeps the one-time offer out of the way of the
+      // assertions below; it is exercised on its own further down.
+      return {
+        theme: 'light', fontFamily: '', fontSize: 16, contentWidth: 72,
+        prewarmAsked: true,
+      };
     },
     SetSettings: async function () {},
     IsWindowHidden: async function () { return false; },
@@ -31,6 +36,13 @@
     OpenFileDialog: async function () { return ''; },
     OpenWithSystemDefault: async function () {},
     ResolveLink: async function () { return { kind: 'anchor', fragment: '' }; },
+    GetPrewarmState: async function () {
+      return { supported: true, enabled: false, needsApproval: false };
+    },
+    SetPrewarm: async function (on) {
+      return { supported: true, enabled: on, needsApproval: false };
+    },
+    MarkPrewarmAsked: async function () {},
     RenderDocument: async function (p) {
       if (p !== doc.path) throw new Error('unexpected path');
       return doc;

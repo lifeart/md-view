@@ -106,6 +106,14 @@ The extension links `internal/render` as a C archive rather than reimplementing 
 
 Three things are load-bearing and each one silently disables the feature if missing: the sandbox entitlement (`pkd` refuses to register an unsandboxed preview extension — signed, valid, embedded and invisible), `CFBundleSupportedPlatforms`, and signing the extension *before* the app that contains it.
 
+### Making cold launches rare
+
+The other half of the answer, and the one that actually moves the number a reader experiences. `prewarm_darwin.go` registers a login agent through `SMAppService` that starts MDv with `--hidden`: the whole NSApplication/NSWindow/WKWebView stack is built at login, when nobody is waiting, and every open afterwards is a warm one.
+
+Three deliberate constraints. It is **off by default** — a markdown viewer does not get to put a resident app on someone's machine unasked. It is offered **once**, a couple of seconds after a document is on screen (asking about startup latency *during* startup would be both ironic and rude), and the answer is recorded in `PrewarmAsked` so a decline is never re-asked. And it goes through `SMAppService` rather than writing into `~/Library/LaunchAgents`, so the item appears in System Settings › General › Login Items under MDv's name and can be revoked there; `scripts/prewarm.sh` now removes the old hand-written plist and delegates to `md-view --prewarm on|off|status`.
+
+Note that `SMAppService` validates the *calling bundle's* signature against the plist it is asked to register, so this cannot be exercised from `go test` — it fails with `-67028` — only from the installed app.
+
 **A 3× cold start is not reachable on this stack.** AppKit's first `NSApplication` init (~40 ms), WKWebView construction (~36 ms) and WebKit's first-navigation process spawn (~82 ms) are ~158 ms of platform floor before a line of MDv's own code runs, against a ~140 ms target. MDv's controllable share of the 421 ms is roughly 22 ms. The answer to "open faster" is the resident instance, not a faster cold path: a warm open is **52–68 ms** to a presented window, of which ~45 ms is again the OS delivering the Apple Event.
 
 Math and diagrams are the one thing that lands *after* first paint, and they
@@ -222,6 +230,8 @@ Rendered markdown is untrusted input:
 md-view/
 ├── main.go              # bootstrap, OnFileOpen, single instance, argv
 ├── prerender.go         # render into the slack before the webview asks
+├── prewarm_darwin.go    # the login agent, via SMAppService (off by default)
+├── prewarm/             # the LaunchAgent plist embedded in the bundle
 ├── quicklook/
 │   ├── bridge/          # internal/render as a C archive (-buildmode=c-archive)
 │   └── MDvQuickLook/    # the Swift preview extension that links it

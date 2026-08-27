@@ -19,6 +19,13 @@ type Settings struct {
 	FontFamily   string `json:"fontFamily"`   // "" = system font stack
 	FontSize     int    `json:"fontSize"`     // px
 	ContentWidth int    `json:"contentWidth"` // ch
+
+	// PrewarmAsked records that the reader has been offered the background
+	// prewarm once. It is deliberately separate from whether prewarm is *on*
+	// — that lives in the system's login-item registry, not here — so that
+	// turning it off in System Settings does not make MDv ask again. An app
+	// that re-offers something you declined is nagware.
+	PrewarmAsked bool `json:"prewarmAsked"`
 }
 
 // Default returns the out-of-the-box settings.

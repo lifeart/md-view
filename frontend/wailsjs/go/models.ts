@@ -21,6 +21,27 @@ export namespace links {
 
 }
 
+export namespace main {
+	
+	export class PrewarmState {
+	    supported: boolean;
+	    enabled: boolean;
+	    needsApproval: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new PrewarmState(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.supported = source["supported"];
+	        this.enabled = source["enabled"];
+	        this.needsApproval = source["needsApproval"];
+	    }
+	}
+
+}
+
 export namespace render {
 	
 	export class Doc {
@@ -51,6 +72,7 @@ export namespace settings {
 	    fontFamily: string;
 	    fontSize: number;
 	    contentWidth: number;
+	    prewarmAsked: boolean;
 	
 	    static createFrom(source: any = {}) {
 	        return new Settings(source);
@@ -62,6 +84,7 @@ export namespace settings {
 	        this.fontFamily = source["fontFamily"];
 	        this.fontSize = source["fontSize"];
 	        this.contentWidth = source["contentWidth"];
+	        this.prewarmAsked = source["prewarmAsked"];
 	    }
 	}
 

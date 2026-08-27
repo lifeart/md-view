@@ -52,10 +52,29 @@
             <button id="size-plus" aria-label="Larger text">+</button>
         </div>
     </div>
+    <div class="row" id="prewarm-row" hidden>
+        <label for="set-prewarm">Keep ready</label>
+        <input id="set-prewarm" type="checkbox"/>
+        <span id="prewarm-note" class="hint"></span>
+    </div>
     <div class="row">
         <label for="set-width">Width</label>
         <input id="set-width" type="range" min="50" max="120" step="2"/>
         <span id="width-value">72</span>
+    </div>
+</div>
+
+<!-- The one-time offer to keep MDv ready in the background. Shown only after
+     a document is on screen, so it never delays first paint, and only once —
+     see PrewarmAsked in internal/settings. -->
+<div id="prewarm-offer" hidden>
+    <p id="prewarm-offer-text">Keep MDv ready in the background so files open instantly?</p>
+    <p class="hint">Opens go from about 0.4&nbsp;s to about 0.06&nbsp;s. MDv starts hidden when
+        you log in and uses memory while it waits. You can change this any time under
+        <strong>Aa</strong>, or in System Settings&nbsp;&rsaquo; General&nbsp;&rsaquo; Login Items.</p>
+    <div class="prewarm-actions">
+        <button id="prewarm-no">No thanks</button>
+        <button id="prewarm-yes" class="primary">Keep it ready</button>
     </div>
 </div>
 

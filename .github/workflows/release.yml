@@ -61,6 +61,12 @@ jobs:
       - name: Build the Quick Look extension
         run: scripts/build-quicklook.sh
 
+      # The login agent SMAppService registers when a reader opts into
+      # prewarming has to live inside the bundle, and be sealed by its
+      # signature — so it is embedded before signing, like the extension.
+      - name: Embed the prewarm login agent
+        run: scripts/embed-prewarm-agent.sh
+
       - name: go test
         run: go test ./...
 

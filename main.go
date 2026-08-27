@@ -16,6 +16,16 @@ var assets embed.FS
 
 func main() {
 	tracef("main entry")
+
+	// --prewarm on|off|status: manage the login agent from a script and exit,
+	// the terminal equivalent of the "Keep ready" toggle. SMAppService checks
+	// the code signature of the *calling bundle* against the plist it is asked
+	// to register, so this can only work from the installed app — which is also
+	// why it is a flag on the app rather than a separate helper.
+	if mode, ok := prewarmFlag(os.Args[1:]); ok {
+		os.Exit(runPrewarmCommand(mode))
+	}
+
 	app := NewApp()
 
 	// --hidden: prewarm launch (login item) — boot fully but keep the window

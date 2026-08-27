@@ -324,6 +324,36 @@ func (a *App) RenderDocument(path string) (render.Doc, error) {
 	return doc, nil
 }
 
+// GetPrewarmState reports whether MDv is registered to start hidden at login,
+// so the frontend can render the control truthfully rather than assuming.
+func (a *App) GetPrewarmState() PrewarmState {
+	return prewarmState()
+}
+
+// SetPrewarm turns the login agent on or off. It is only ever called from an
+// explicit choice by the reader — the first-run offer or the settings toggle —
+// never inferred: this puts an entry in System Settings > Login Items under
+// their name, which is not something to do on someone's behalf.
+func (a *App) SetPrewarm(enable bool) (PrewarmState, error) {
+	if err := setPrewarm(enable); err != nil {
+		return prewarmState(), err
+	}
+	return prewarmState(), nil
+}
+
+// MarkPrewarmAsked records that the offer has been made, so it is made once.
+func (a *App) MarkPrewarmAsked() error {
+	if a.store == nil {
+		return nil
+	}
+	s, err := a.store.Load()
+	if err != nil {
+		return err
+	}
+	s.PrewarmAsked = true
+	return a.store.Save(s)
+}
+
 // ResolveLink classifies href clicked inside the document at basePath.
 // For markdown targets that exist, the target's directory is added to the
 // scope (navigation extends scope, per the architecture's security model).

@@ -80,6 +80,9 @@ jobs:
       - name: Build the Quick Look extension
         run: scripts/build-quicklook.sh
 
+      - name: Embed the prewarm login agent
+        run: scripts/embed-prewarm-agent.sh
+
       # The Go tests stop at the HTML internal/render emits; everything after
       # it — the copy-button pass and the lazy KaTeX/Mermaid passes — only runs
       # in a browser. This drives the built bundle headless through both entry

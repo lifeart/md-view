@@ -742,6 +742,70 @@ article dl dd {
   margin-left: 1.5em;
 }
 
+/* ---------- prewarm offer ---------- */
+
+/* Deliberately a panel in the corner, not a modal: the reader came here to
+   read a document, and a question about startup performance has no business
+   blocking it. Dismissing it costs one click and it never returns. */
+#prewarm-offer {
+  position: fixed;
+  right: 16px;
+  bottom: 16px;
+  z-index: 40;
+  max-width: 340px;
+  padding: 14px 16px;
+  background: var(--menu-bg);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  box-shadow: var(--shadow);
+  font-size: 13px;
+}
+
+#prewarm-offer p {
+  margin: 0 0 8px;
+}
+
+#prewarm-offer .hint,
+#appearance-menu .hint {
+  color: var(--fg-muted);
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+.prewarm-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.prewarm-actions button {
+  appearance: none;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg);
+  color: var(--fg);
+  font-family: var(--font-family);
+  font-size: 12px;
+  padding: 5px 12px;
+  cursor: pointer;
+}
+
+.prewarm-actions button.primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+
+.prewarm-actions button:hover {
+  border-color: var(--accent);
+}
+
+#prewarm-row #prewarm-note {
+  flex: 1 1 100%;
+  order: 3;
+}
+
 /* ---------- view transitions ---------- */
 
 /* Document swaps run through document.startViewTransition (see main.ts):
