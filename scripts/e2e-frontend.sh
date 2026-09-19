@@ -18,6 +18,10 @@
 # built dist/, headless, with the Wails binding surface stubbed, through both
 # entry paths and a theme change.
 #
+# It also drives the copy handler, whose output has the same shape of bug: the
+# structure it has to reproduce (list markers, nesting, the blank line after a
+# list, math and diagram sources) only exists once the document is in a DOM.
+#
 # Usage: scripts/e2e-frontend.sh [path/to/document.md]
 # Requires: a Chromium-family browser (skips cleanly if none is installed) and
 # a built frontend/dist (run `wails build` or `npm run build` in frontend/).

@@ -84,9 +84,18 @@
     var probe = document.createElement('div');
     probe.innerHTML = doc.html;
     var fences = Array.prototype.slice.call(probe.querySelectorAll('pre'));
+    var mathSource = probe.querySelector('pre > code.language-math');
+    var diagramSource = probe.querySelector('code.language-mermaid');
+    var numbered = probe.querySelector('ol[start]');
     return {
       math: probe.querySelectorAll('code.language-math').length,
       diagrams: probe.querySelectorAll('code.language-mermaid').length,
+      // The sources the lazy renderers consume. Once they have run the DOM
+      // holds KaTeX glyph spans and an SVG, neither of which copies as text —
+      // so the copy pass has to reach back to these.
+      mathSource: mathSource ? mathSource.textContent.trim() : '',
+      diagramSource: diagramSource ? diagramSource.textContent.trim() : '',
+      listStart: numbered ? numbered.getAttribute('start') : '',
       // Only plain code fences get a copy button; math and diagram sources are
       // replaced by typeset output, so wrapping them would strand the button.
       codeFences: fences.filter(function (pre) {
@@ -104,6 +113,23 @@
     check(label + ': copy button per code fence',
       got.copyButtons === want.codeFences, got.copyButtons + '/' + want.codeFences);
     check(label + ': no stranded copy button', got.orphanWrappers === 0, String(got.orphanWrappers));
+  }
+
+  // copyOf selects a node's contents and runs the real `copy` handler over it,
+  // returning what would have landed on the pasteboard.
+  function copyOf(node) {
+    var sel = window.getSelection();
+    var range = document.createRange();
+    range.selectNodeContents(node);
+    sel.removeAllRanges();
+    sel.addRange(range);
+    var data = new DataTransfer();
+    var event = new ClipboardEvent('copy', {
+      clipboardData: data, bubbles: true, cancelable: true,
+    });
+    if (event.clipboardData !== data) throw new Error('ClipboardEvent ignored clipboardData');
+    document.dispatchEvent(event);
+    return data.getData('text/plain');
   }
 
   // Post the verdict back to the harness server, which is waiting on it. The
@@ -179,6 +205,35 @@
           check('copy button copies the fence', typeof window.__clipboard === 'string' &&
             window.__clipboard.length > 0, JSON.stringify(window.__clipboard));
         }
+
+        // 6. Copying. WebKit's Selection.toString() is built from laid-out text
+        //    runs, so it drops everything a list is made of — the bullet, the
+        //    number, the indent, and the blank line that separates the list
+        //    from the next block. Copied lists arrived as a run of bare lines
+        //    that had to be re-formatted by hand; copy.ts walks the DOM
+        //    instead. These run last because they leave a selection behind.
+        var checkbox = content.querySelector('li input[type="checkbox"]');
+        var taskList = checkbox && checkbox.closest('ul');
+        if (taskList) {
+          var items = copyOf(taskList);
+          check('copy: task list keeps its markers', /^- \[[ x]\] \S/m.test(items),
+            JSON.stringify(items));
+          check('copy: nested item stays indented', /\n {2,}- /.test(items),
+            JSON.stringify(items));
+        }
+
+        var all = copyOf(content);
+        check('copy: a list is followed by a blank line', /\n- [^\n]+\n\n/.test(all),
+          JSON.stringify(all.slice(0, 400)));
+        if (want.listStart) {
+          check('copy: an ol keeps the document numbering',
+            all.indexOf('\n' + want.listStart + '. ') >= 0, want.listStart);
+        }
+        check('copy: typeset math copies as its source',
+          !want.mathSource || all.indexOf(want.mathSource) >= 0, want.mathSource);
+        check('copy: a drawn diagram copies as its source',
+          !want.diagramSource || all.indexOf(want.diagramSource) >= 0, want.diagramSource);
+        check('copy: the fence copy button is not copied too', !/^Copy$/m.test(all));
 
         check('no uncaught errors', consoleErrors.length === 0, consoleErrors.join(' | '));
       } catch (err) {

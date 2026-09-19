@@ -23,7 +23,7 @@ Why this shape:
 - **Launch speed.** The system webview is a shared OS framework (already warm in memory on macOS), and the binary is ~16 MB (of which ~4 MB is the KaTeX and Mermaid chunks, which are never on the launch path). Markdown→HTML happens in Go before the webview paints — no JS framework boot, no client-side parser on the critical path. `goldmark` (the engine behind Hugo) renders megabyte-sized documents in tens of milliseconds.
 - **Light development.** `gopls` runs in a few hundred MB (vs 2–4 GB for rust-analyzer), `go build` takes seconds with no multi-GB target directory, and compile memory stays flat. Daily iteration on theming/UX is TS/CSS via `wails dev` hot reload with no Go rebuild at all.
 - **File associations are first-class on macOS.** Declared in `wails.json` under `info.fileAssociations` (ext, name, icon, `role: "Viewer"` → `CFBundleTypeRole`), delivered at runtime through the `Mac.OnFileOpen(filePaths []string)` callback — both at launch and while running.
-- **Native copy/selection behavior for free.** WKWebView gives macOS-native text selection, context menus, and services; we only override the copy payload to plain text.
+- **Native copy/selection behavior for free.** WKWebView gives macOS-native text selection, context menus, and services; we only override the copy payload to plain text (see [clipboard behavior](#clipboard-behavior)).
 
 ### Alternatives considered
 
@@ -52,8 +52,9 @@ Why this shape:
 │  Webview (WKWebView)     ▼                                    │
 │  ├─ index.html — toolbar (◀ ▶, title, appearance menu)        │
 │  ├─ theme.css — CSS custom properties, light theme default    │
-│  └─ main.ts — link interception, history stack,               │
-│               copy-as-plain-text, theme/font application      │
+│  ├─ main.ts — link interception, history stack,               │
+│  │             theme/font application                         │
+│  └─ copy.ts — selection -> structured plain text              │
 └───────────────────────────────────────────────────────────────┘
 ```
 
@@ -205,8 +206,12 @@ An in-app stack per window: `{ path, scrollY, anchor }`. Back/forward via toolba
 ### Clipboard behavior
 
 - A `copy` event handler replaces the payload with the selection's plain text (`text/plain` only) — this is the default. A settings toggle can re-enable rich copy later.
+- That text is serialized by `copy.ts`, not by `Selection.toString()`. The browser builds its string from laid-out text runs, and everything a list is made of lives outside them: the bullet and the number are CSS markers, the nesting is padding, and a list is not separated from the next block by a blank line the way two paragraphs are — so a copied list arrived as a run of bare lines that had to be re-formatted by hand. `copy.ts` walks the DOM clipped to the selection and re-emits the block structure the reader can see: one blank line between blocks, `-` / `N.` / `- [x]` markers with their indentation, `> ` for quotes, `---` for rules, tab-separated table rows, `<pre>` verbatim. Inline formatting stays plain — bold copies as its text, a link as its label — because the payload is plain text, not markdown source.
+- The walk carries a "wholly inside the selection" flag down the tree. Asking the `Range` about each node in turn costs ~14 µs in WebKit — 0.7 s of Cmd+C on a 400 KB document — but a selection is one contiguous span, so only the two boundary paths are ever in doubt; below a fully covered node the walk never touches the `Range` again. Same document, 8–11 ms.
+- Two things in the document have no copyable text of their own once their lazy renderer has run: typeset math is KaTeX glyph spans, and a diagram is an SVG full of label fragments. Both keep their source where the copy pass can reach it — `aria-label` on the math host, `data-source` on the diagram wrapper.
 - Context menu on links: **Copy Link Address** (absolute resolved URL for local targets, original URL for external).
 - Code blocks get a hover "copy" button that copies raw code text.
+- The Quick Look preview ships no JavaScript on purpose (`internal/quicklook`), so none of this applies there: copying from a Space-bar preview is whatever WebKit does by default.
 
 ### Theming and settings
 
@@ -248,7 +253,8 @@ md-view/
 ├── frontend/
 │   ├── index.html       # shell + toolbar
 │   ├── theme.css        # variables + default light theme
-│   ├── main.ts          # links, history, copy, settings application
+│   ├── main.ts          # links, history, settings application
+│   ├── copy.ts          # selection -> structured plain text
 │   ├── math.ts          # lazy KaTeX  } imported only when the document
 │   └── diagrams.ts      # lazy Mermaid} actually contains one
 ├── wails.json           # info.fileAssociations (md, markdown, mdown, mkd)

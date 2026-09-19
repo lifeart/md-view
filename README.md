@@ -17,7 +17,7 @@ MDv is the missing viewer: a native macOS app that opens a rendered, readable ma
 - **Fast, measured:** ~0.4 s from double-click to a rendered window, cold — about 40% of which is AppKit and WebKit starting up before MDv runs a line; ~60 ms into the resident instance. Rendering happens in Go before the webview paints — the first paint *is* the finished document.
 - **Everything GitHub renders:** GFM tables (with column alignment), task lists, footnotes, `> [!NOTE]` alerts, `:tada:` emoji, YAML front matter, `<details>`, `<kbd>`, `<picture>`, `$…$` math and ```` ```mermaid ```` diagrams — with GitHub's own heading-anchor slugs, so a table of contents copied from a README still lands where it should.
 - **Navigable:** relative links to other markdown files open in-app with back/forward (`Cmd+[` / `Cmd+]`), scroll restoration, and anchor support; `http(s)` links open in your browser.
-- **Copy-friendly:** selecting and copying yields plain text; links offer "Copy Link Address"; code blocks have a hover copy button.
+- **Copy-friendly:** selecting and copying yields plain text that keeps the structure you can see — list markers and their nesting, a blank line between blocks, quotes, code verbatim — so a copied list does not need re-formatting. Links offer "Copy Link Address"; code blocks have a hover copy button.
 - **Readable by default:** white background, system font, ~72ch column, auto-hiding toolbar. Light / dark / sepia / follow-system themes; font family, size (`Cmd+=` / `Cmd+-`), and column width adjustable and persisted.
 - **Safe:** all markdown HTML is sanitized; file access is scoped to the directories of documents you open; executables are never handed to the system opener.
 - **Small:** Go + Wails v2 + the system WKWebView. ~16 MB binary, no bundled browser, no JS framework. Math and diagrams are the only bundled libraries and they load on demand — a document without them never fetches a byte of either.
@@ -97,9 +97,9 @@ scripts/e2e-warm-open.sh   # after wails build: drives the real app through clos
                            # and checks (via MDVIEW_TRACE) that the document just opened is the
                            # one committed — the OS un-hide vs. doc:open race has no unit-test seam
 scripts/e2e-frontend.sh    # after a frontend build: runs the built dist headless with the Wails
-                           # bindings stubbed, and checks that math, diagrams, copy buttons and
-                           # anchors come out right on *both* entry paths (cold-launch inline and
-                           # doc:open) — none of which the Go tests can see
+                           # bindings stubbed, and checks that math, diagrams, copy buttons,
+                           # anchors and the copied text come out right on *both* entry paths
+                           # (cold-launch inline and doc:open) — none of which the Go tests see
 scripts/perf-coldstart.sh  # after wails build: launch breakdown, timed from the Finder gesture
                            # (not from the app's first trace line, which flatters it by a third)
 scripts/build-quicklook.sh # after wails build: builds the Quick Look extension and embeds it in

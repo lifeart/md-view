@@ -19,6 +19,7 @@ import {
 } from '../wailsjs/go/main/App';
 import { ClipboardSetText, EventsOn, WindowSetTitle } from '../wailsjs/runtime/runtime';
 import { main, settings } from '../wailsjs/go/models';
+import { selectionToText } from './copy';
 
 // ---------- helpers ----------
 
@@ -623,10 +624,24 @@ async function copyLinkAddress(href: string): Promise<void> {
 
 // ---------- copy as plain text ----------
 
+// selectionToText, not Selection.toString(): the browser's own string drops
+// list markers, nesting and the blank line that separates a list from what
+// follows it. See copy.ts.
 document.addEventListener('copy', (e) => {
   const sel = window.getSelection();
   if (!sel || sel.isCollapsed || !e.clipboardData) return;
-  e.clipboardData.setData('text/plain', sel.toString());
+  let text: string;
+  try {
+    text = selectionToText(sel, content);
+  } catch (err) {
+    // Never lose the copy over a serialization bug — fall back to the
+    // browser's flattened text, but say that the structure was lost.
+    showError(`Copied without formatting: ${errMsg(err)}`);
+    text = sel.toString();
+  }
+  // An empty result means the selection never reached the document (the
+  // toolbar, the appearance menu); leave that payload to the browser.
+  e.clipboardData.setData('text/plain', text || sel.toString());
   e.preventDefault();
 });
 
