@@ -27,6 +27,11 @@
   --kbd-bg: #f6f8fa;
   --shadow: 0 8px 24px rgba(31, 35, 40, 0.15);
 
+  /* find in page: every match, and the one the reader is on */
+  --find-match: #fff1a6;
+  --find-current: #ffa64d;
+  --find-current-fg: #1f2328;
+
   /* GitHub alert accents (> [!NOTE] …) */
   --alert-note: #0969da;
   --alert-tip: #1a7f37;
@@ -55,6 +60,11 @@
   --error-border: #8e1519;
   --kbd-bg: #161b22;
   --shadow: 0 8px 24px rgba(1, 4, 9, 0.8);
+
+  /* find in page: every match, and the one the reader is on */
+  --find-match: #5c4a10;
+  --find-current: #f0a442;
+  --find-current-fg: #0d1117;
 
   /* GitHub alert accents (> [!NOTE] …) */
   --alert-note: #4493f8;
@@ -85,6 +95,11 @@
     --kbd-bg: #161b22;
     --shadow: 0 8px 24px rgba(1, 4, 9, 0.8);
 
+    /* find in page: every match, and the one the reader is on */
+    --find-match: #5c4a10;
+    --find-current: #f0a442;
+    --find-current-fg: #0d1117;
+
     /* GitHub alert accents (> [!NOTE] …) */
     --alert-note: #4493f8;
     --alert-tip: #3fb950;
@@ -110,6 +125,11 @@
   --error-border: #dfa08c;
   --kbd-bg: #ece1c6;
   --shadow: 0 8px 24px rgba(67, 52, 34, 0.25);
+
+  /* find in page: every match, and the one the reader is on */
+  --find-match: #f3d673;
+  --find-current: #f0a04b;
+  --find-current-fg: #433422;
 
   /* GitHub alert accents (> [!NOTE] …) */
   --alert-note: #205e9e;
@@ -359,6 +379,134 @@ body:has(#appearance-menu:not([hidden])) #toolbar {
 
 #link-menu button:hover {
   background: var(--code-bg);
+}
+
+/* ---------- find in page ---------- */
+
+/* Floats over the top right corner, inset far enough to clear the Aa button
+   when the toolbar slides in underneath it — so it never has to move out of
+   the toolbar's way, and nothing jumps under the pointer. The one thing it
+   does move for is a match it would cover: find.ts sets --find-dodge. */
+#find-bar {
+  position: fixed;
+  top: calc(5px + var(--find-dodge, 0px));
+  right: 56px;
+  z-index: 15;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  width: 300px;
+  max-width: calc(100vw - 68px);
+  height: 32px;
+  padding: 0 4px;
+  background: var(--menu-bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: var(--shadow);
+  font-size: 13px;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+/* display:flex above beats the UA's [hidden] rule — restate it */
+#find-bar[hidden] {
+  display: none;
+}
+
+/* The title is centred across the toolbar; keep it out from under the bar. */
+body:has(#find-bar:not([hidden])) #doc-title {
+  padding-right: 304px;
+}
+
+#find-input {
+  flex: 1;
+  min-width: 0;
+  height: 22px;
+  padding: 0 6px;
+  font: inherit;
+  color: var(--fg);
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  outline: none;
+  /* WebKit applies the bar's user-select: none to the field's own text. */
+  user-select: text;
+  -webkit-user-select: text;
+}
+
+#find-input:focus {
+  border-color: var(--accent);
+}
+
+#find-count {
+  min-width: 58px;
+  padding: 0 4px;
+  color: var(--fg-muted);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  white-space: nowrap;
+}
+
+#find-count.none {
+  color: var(--error-fg);
+}
+
+#find-bar button {
+  appearance: none;
+  border: none;
+  background: transparent;
+  color: var(--fg);
+  font: inherit;
+  font-size: 10px;
+  line-height: 1;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border-radius: 5px;
+  cursor: pointer;
+}
+
+#find-bar #find-close {
+  font-size: 15px;
+}
+
+#find-bar button:hover:not(:disabled) {
+  background: var(--code-bg);
+}
+
+#find-bar button:disabled {
+  color: var(--fg-muted);
+  opacity: 0.45;
+  cursor: default;
+}
+
+/* Registered by find.ts. The wash leaves the text colour alone so highlighted
+   code keeps its syntax colours; the current match is strong enough to need
+   its own. */
+::highlight(find-match) {
+  background-color: var(--find-match);
+}
+
+::highlight(find-current) {
+  background-color: var(--find-current);
+  color: var(--find-current-fg);
+}
+
+/* Without the Highlight API find.ts draws the current match itself, as boxes
+   in page coordinates. Translucent, because they sit on top of the text. */
+.find-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  pointer-events: none;
+}
+
+.find-overlay div {
+  position: absolute;
+  background: var(--find-current);
+  border-radius: 2px;
+  opacity: 0.45;
 }
 
 /* ---------- document ---------- */

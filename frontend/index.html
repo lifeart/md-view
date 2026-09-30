@@ -20,6 +20,15 @@
     </div>
 </header>
 
+<div id="find-bar" role="search" hidden>
+    <input id="find-input" type="text" placeholder="Find" aria-label="Find in document"
+           autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"/>
+    <span id="find-count" aria-live="polite"></span>
+    <button id="find-prev" title="Previous (⇧⌘G)" aria-label="Previous match" disabled>&#x25B2;</button>
+    <button id="find-next" title="Next (⌘G)" aria-label="Next match" disabled>&#x25BC;</button>
+    <button id="find-close" title="Close (Esc)" aria-label="Close find">&times;</button>
+</div>
+
 <div id="error-banner" hidden>
     <span id="error-text"></span>
     <button id="error-dismiss" aria-label="Dismiss">&times;</button>

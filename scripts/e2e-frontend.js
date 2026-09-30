@@ -206,7 +206,143 @@
             window.__clipboard.length > 0, JSON.stringify(window.__clipboard));
         }
 
-        // 6. Copying. WebKit's Selection.toString() is built from laid-out text
+        // 6. Find in page. The webview has no find bar of its own, so all of
+        //    it is the bundle's: the shortcut, the search across inline
+        //    markup, the highlights, and keeping them true while the document
+        //    changes underneath (math and diagrams land after first paint, and
+        //    a navigation replaces everything).
+        var findBar = document.getElementById('find-bar');
+        var findInput = document.getElementById('find-input');
+        var findCount = document.getElementById('find-count');
+        var key = function (target, init) {
+          init.bubbles = true;
+          init.cancelable = true;
+          var ev = new KeyboardEvent('keydown', init);
+          target.dispatchEvent(ev);
+          return ev;
+        };
+        var type = function (query) {
+          findInput.value = query;
+          findInput.dispatchEvent(new Event('input', { bubbles: true }));
+        };
+        var marked = function (name) {
+          var highlight = CSS.highlights.get(name);
+          return highlight ? Array.from(highlight) : [];
+        };
+        var textIn = function (range) {
+          var live = document.createRange();
+          live.setStart(range.startContainer, range.startOffset);
+          live.setEnd(range.endContainer, range.endOffset);
+          return live.toString();
+        };
+        var same = function (a, b) {
+          return a.replace(/\s+/g, ' ').toLowerCase() === b.replace(/\s+/g, ' ').toLowerCase();
+        };
+        // Ranges are made afresh each time one is painted, so compare where
+        // they point rather than which object they are.
+        var sameSpot = function (a, b) {
+          return !!a && !!b && a.startContainer === b.startContainer && a.startOffset === b.startOffset;
+        };
+        var position = function () {
+          var m = /^(\d+) of (\d+)$/.exec(findCount.textContent);
+          return m ? Number(m[1]) : 0;
+        };
+
+        var shortcut = key(document, { key: 'f', metaKey: true });
+        check('find: Cmd+F opens the bar', !findBar.hidden && shortcut.defaultPrevented);
+        check('find: the field takes the keyboard', document.activeElement === findInput);
+
+        var heading = content.querySelector('h2');
+        var title = heading ? heading.textContent.trim() : '';
+        if (title) {
+          type(title.toUpperCase());
+          var found = marked('find-match');
+          var active = marked('find-current');
+          check('find: a heading is found whatever its case',
+            found.length >= 1 && active.length === 1 && same(textIn(active[0]), title),
+            found.length + ' matches for ' + JSON.stringify(title));
+          check('find: the count places the current match',
+            position() >= 1 && findCount.textContent === position() + ' of ' + found.length,
+            findCount.textContent);
+        }
+
+        // A phrase that is one run of words on screen but two nodes in the
+        // DOM, inside a <details> the reader has not opened.
+        var closed = content.querySelector('details:not([open])');
+        var inline = closed && closed.querySelector('strong, em, code');
+        var lead = inline && inline.previousSibling;
+        if (lead && lead.nodeType === Node.TEXT_NODE && /\S\s+$/.test(lead.data)) {
+          var phrase = lead.data.trim().split(/\s+/).pop() + ' ' + inline.textContent;
+          type(phrase);
+          var across = marked('find-current');
+          check('find: a phrase matches across inline markup',
+            across.length === 1 && across[0].startContainer !== across[0].endContainer &&
+              same(textIn(across[0]), phrase),
+            JSON.stringify(phrase) + ' -> ' + findCount.textContent);
+          check('find: a match in a collapsed <details> opens it', closed.open === true);
+        }
+
+        // The Copy button and a diagram's stylesheet are inside #content and
+        // are not the document.
+        var chromeSkipped = ['Copy', '#mermaid'].every(function (query) {
+          type(query);
+          return marked('find-match').every(function (range) {
+            return !range.startContainer.parentElement.closest('button, style');
+          });
+        });
+        check('find: chrome inside the document is not searched', chromeSkipped);
+
+        type('⁣ no such text');
+        check('find: a miss says so',
+          findCount.textContent === 'No results' && marked('find-match').length === 0 &&
+            document.getElementById('find-next').disabled, findCount.textContent);
+
+        type('e');
+        var total = marked('find-match').length;
+        check('find: a common letter has many matches', total >= 2, String(total));
+        if (total >= 2) {
+          var startAt = position();
+          var firstHit = marked('find-current')[0];
+          key(findInput, { key: 'Enter' });
+          var secondHit = marked('find-current')[0];
+          check('find: Enter moves to the next match',
+            !sameSpot(secondHit, firstHit) && position() === (startAt % total) + 1, findCount.textContent);
+          key(findInput, { key: 'Enter', shiftKey: true });
+          check('find: Shift+Enter moves back',
+            sameSpot(marked('find-current')[0], firstHit) && position() === startAt, findCount.textContent);
+          key(document, { key: 'g', metaKey: true });
+          check('find: Cmd+G moves to the next match', sameSpot(marked('find-current')[0], secondHit));
+
+          // The same document again, as a doc:open: every node the ranges
+          // pointed into is replaced, and then replaced again in part when the
+          // math and the diagram land.
+          if (events['doc:open']) {
+            events['doc:open'](doc.path);
+            await wait(3000);
+            var fresh = marked('find-match');
+            check('find: the highlights follow a re-rendered document',
+              fresh.length === total && fresh.every(function (range) {
+                return range.startContainer.isConnected && range.endContainer.isConnected;
+              }), fresh.length + '/' + total);
+            check('find: no match is current until the reader picks one again',
+              marked('find-current').length === 0 && findCount.textContent === total + ' matches',
+              findCount.textContent);
+            key(findInput, { key: 'Enter' });
+            check('find: the next step starts from what is on screen', position() >= 1,
+              findCount.textContent);
+          }
+        }
+
+        var lastHit = marked('find-current')[0];
+        var lastText = lastHit ? textIn(lastHit) : '';
+        key(findInput, { key: 'Escape' });
+        check('find: Escape closes the bar and clears the highlights',
+          findBar.hidden && !CSS.highlights.has('find-match') && !CSS.highlights.has('find-current'));
+        check('find: closing leaves the current match selected',
+          lastText !== '' && window.getSelection().toString() === lastText,
+          JSON.stringify(window.getSelection().toString()));
+
+        // 7. Copying. WebKit's Selection.toString() is built from laid-out text
         //    runs, so it drops everything a list is made of — the bullet, the
         //    number, the indent, and the blank line that separates the list
         //    from the next block. Copied lists arrived as a run of bare lines

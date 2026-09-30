@@ -35,12 +35,13 @@ interface Block {
 
 // Elements whose text is chrome, not document: the hover "Copy" button on a
 // code fence is inside the content container and would otherwise be copied
-// along with the code it copies.
-const SKIP_TAGS = new Set([
+// along with the code it copies. find.ts shares these three sets, so that
+// find and copy agree on what is document and what is chrome.
+export const SKIP_TAGS = new Set([
   'BUTTON', 'IFRAME', 'NOSCRIPT', 'OPTION', 'SCRIPT', 'SELECT', 'STYLE', 'TEMPLATE',
 ]);
 
-const BLOCK_TAGS = new Set([
+export const BLOCK_TAGS = new Set([
   'ADDRESS', 'ARTICLE', 'ASIDE', 'AUDIO', 'BLOCKQUOTE', 'DD', 'DETAILS', 'DIV', 'DL',
   'DT', 'FIELDSET', 'FIGCAPTION', 'FIGURE', 'FOOTER', 'FORM', 'H1', 'H2', 'H3', 'H4',
   'H5', 'H6', 'HEADER', 'HR', 'LI', 'MAIN', 'NAV', 'OL', 'P', 'PRE', 'SECTION',
@@ -49,7 +50,7 @@ const BLOCK_TAGS = new Set([
 
 // Cells are reached through their table, which needs the whole row to lay the
 // columns out; a selection that lands on one is lifted to it.
-const TABLE_PARTS = new Set(['TBODY', 'TD', 'TFOOT', 'TH', 'THEAD', 'TR']);
+export const TABLE_PARTS = new Set(['TBODY', 'TD', 'TFOOT', 'TH', 'THEAD', 'TR']);
 
 // selectionToText renders the part of `root` that `sel` covers as plain text.
 // It returns '' when the selection does not reach into the document body (a

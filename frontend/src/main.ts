@@ -20,6 +20,7 @@ import {
 import { ClipboardSetText, EventsOn, WindowSetTitle } from '../wailsjs/runtime/runtime';
 import { main, settings } from '../wailsjs/go/models';
 import { selectionToText } from './copy';
+import { createFind } from './find';
 
 // ---------- helpers ----------
 
@@ -90,6 +91,14 @@ const prewarmOffer = el<HTMLDivElement>('prewarm-offer');
 const prewarmYes = el<HTMLButtonElement>('prewarm-yes');
 const prewarmNo = el<HTMLButtonElement>('prewarm-no');
 const linkCopy = el<HTMLButtonElement>('link-copy');
+const find = createFind(content, {
+  bar: el<HTMLDivElement>('find-bar'),
+  input: el<HTMLInputElement>('find-input'),
+  count: el<HTMLSpanElement>('find-count'),
+  prev: el<HTMLButtonElement>('find-prev'),
+  next: el<HTMLButtonElement>('find-next'),
+  close: el<HTMLButtonElement>('find-close'),
+});
 
 // ---------- error banner ----------
 
@@ -735,10 +744,14 @@ function enhanceCodeBlocks(): void {
 // ---------- keyboard shortcuts ----------
 
 document.addEventListener('keydown', (e) => {
+  // A key pressed while an input method is composing in the find field
+  // belongs to the composition (Escape cancels it), not to the app.
+  if (e.isComposing) return;
   const mod = e.metaKey || e.ctrlKey;
   if (e.key === 'Escape') {
     appearanceMenu.hidden = true;
     linkMenu.hidden = true;
+    find.close();
     return;
   }
   if (mod && e.key === '[') {
@@ -762,6 +775,14 @@ document.addEventListener('keydown', (e) => {
   } else if (mod && e.key === '-') {
     e.preventDefault();
     changeFontSize(-1);
+  } else if (mod && !(e.metaKey && e.ctrlKey) && e.key.toLowerCase() === 'f') {
+    // Ctrl+Cmd+F is the Window menu's Full Screen, and the page sees the key
+    // before the menu does — leave that one alone.
+    e.preventDefault();
+    find.open();
+  } else if (mod && e.key.toLowerCase() === 'g') {
+    e.preventDefault();
+    find.step(e.shiftKey ? -1 : 1);
   }
 });
 

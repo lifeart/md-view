@@ -22,6 +22,10 @@
 # structure it has to reproduce (list markers, nesting, the blank line after a
 # list, math and diagram sources) only exists once the document is in a DOM.
 #
+# And find in page, which is the bundle's from end to end — a system webview
+# has no find bar — and has to stay true while math, diagrams and navigations
+# change the document underneath an open search.
+#
 # Usage: scripts/e2e-frontend.sh [path/to/document.md]
 # Requires: a Chromium-family browser (skips cleanly if none is installed) and
 # a built frontend/dist (run `wails build` or `npm run build` in frontend/).

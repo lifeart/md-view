@@ -54,7 +54,8 @@ Why this shape:
 │  ├─ theme.css — CSS custom properties, light theme default    │
 │  ├─ main.ts — link interception, history stack,               │
 │  │             theme/font application                         │
-│  └─ copy.ts — selection -> structured plain text              │
+│  ├─ copy.ts — selection -> structured plain text              │
+│  └─ find.ts — find in page (Cmd+F)                            │
 └───────────────────────────────────────────────────────────────┘
 ```
 
@@ -213,6 +214,20 @@ An in-app stack per window: `{ path, scrollY, anchor }`. Back/forward via toolba
 - Code blocks get a hover "copy" button that copies raw code text.
 - The Quick Look preview ships no JavaScript on purpose (`internal/quicklook`), so none of this applies there: copying from a Space-bar preview is whatever WebKit does by default.
 
+### Find in page
+
+A system webview has no find bar — WKWebView leaves that to the host app — so `Cmd+F` is `find.ts`: a bar in the top right corner, matches highlighted as you type, `Enter` / `Shift+Enter` (or `Cmd+G` / `Shift+Cmd+G`) to step, `Esc` to close, which leaves the current match selected.
+
+- **Matches are painted, not inserted.** They are ranges registered with the CSS Custom Highlight API and styled by `::highlight()`, not `<mark>` elements wrapped around text. The DOM has other readers — `copy.ts` serializes it, KaTeX and Mermaid replace parts of it after first paint, a theme change redraws the diagrams — and none of them should have to know a search is in progress. It also means typing a query never reflows the document.
+- **The search runs over one string**: every text node under `#content`, concatenated verbatim, so an offset into it is a node's start plus an offset into that node and there is no mapping table to keep in sync. Two rules make that string say what the reader sees. A match may cross inline markup (`hidden **content**` is one phrase on screen) but not a block boundary, so blocks are separated by U+0000, which no query can contain. And whitespace in the query matches any run of whitespace, because the newline goldmark leaves inside a wrapped paragraph renders as a space. The tag sets that decide what is a block and what is chrome (the code fence's Copy button, a diagram's `<style>`) are `copy.ts`'s own, so find and copy agree on what is document and what is chrome.
+- **Only the matches near the window are registered.** WebKit checks every registered range against each run of text it paints, on every frame. Measured in WKWebView on a ~900 KB document: with 10,000 ranges registered a scrolled frame took 80–220 ms instead of 16, and a keystroke took up to ~370 ms to reach the screen. So matches are kept as two numbers each — a one-letter query there has 94,713 of them — and at most 1,000 around the window become ranges, a set that follows the scroll position. Same document, same query: 7–29 ms of script per keystroke, 18–59 ms per scrolled frame, and the count stays exact.
+- **The document changes under an open search** — math and diagrams land after first paint, a theme change redraws diagrams, a navigation replaces everything — so while the bar is open a `MutationObserver` drops the index and searches again, without moving the view. The current match survives if the text node it starts in did; otherwise no match is current, the count reads "N matches", and the next step starts from what is on screen rather than from a position in a document that is gone.
+- **Reaching a match** opens any collapsed `<details>` around it, scrolls a long code line or a wide table sideways inside its own box, and centres it in the window. The bar floats over the document, and a match on the first lines cannot be scrolled out from under it — so there the bar moves instead.
+- **What is searched is what is on screen.** Typeset math is searched as the glyphs KaTeX drew, not as its TeX source; a diagram by its labels.
+- **Without the Highlight API** (WebKit before Safari 17.2, so macOS 14.1 and older) the search, the count and the stepping all still work, and the current match is marked by translucent boxes drawn over it. Only the current one: positioned boxes have to be laid out again whenever the document reflows.
+
+`scripts/e2e-frontend.sh` drives all of it except the fallback, which needs an engine without the API.
+
 ### Theming and settings
 
 - All colors/typography flow through CSS custom properties on `:root`; changing a setting flips variables — no re-render. Chroma emits class-based highlighting, so code themes flip with the same variables.
@@ -255,6 +270,7 @@ md-view/
 │   ├── theme.css        # variables + default light theme
 │   ├── main.ts          # links, history, settings application
 │   ├── copy.ts          # selection -> structured plain text
+│   ├── find.ts          # find in page: index, highlights, the bar
 │   ├── math.ts          # lazy KaTeX  } imported only when the document
 │   └── diagrams.ts      # lazy Mermaid} actually contains one
 ├── wails.json           # info.fileAssociations (md, markdown, mdown, mkd)
@@ -266,6 +282,6 @@ md-view/
 - **M0 — walking skeleton:** file association (packaged build) + argv open, GFM rendering with highlighting, default light theme, plain-text copy. (Requirements 1, 2, 3, 6 in basic form.)
 - **M1 — navigation:** md-to-md links, anchors, back/forward with scroll restoration, external links to browser, relative images.
 - **M2 — appearance & convenience:** settings UI + persistence (theme/font/size/width), `Cmd+O`, recent files menu, drag-and-drop onto window/dock.
-- **M3 — polish:** file watcher with auto-refresh (preserving scroll), find-in-page (`Cmd+F`), outline/TOC sidebar, multi-window (one document per window, Preview-style), print/export to PDF.
+- **M3 — polish:** file watcher with auto-refresh (preserving scroll), find-in-page (`Cmd+F` — done, see [Find in page](#find-in-page)), outline/TOC sidebar, multi-window (one document per window, Preview-style), print/export to PDF.
 
 Deliberately out of scope for now: editing, mermaid/math rendering (both need JS on the critical path — can be added later as lazy-loaded opt-ins), remote markdown URLs.
