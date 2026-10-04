@@ -22,6 +22,8 @@ jobs:
     name: Build the macOS DMG and publish the release
     runs-on: macos-15
     timeout-minutes: 45
+    outputs:
+      signed: ${{ steps.signing.outputs.enabled }}
     steps:
       - uses: actions/checkout@v7
 
@@ -221,3 +223,76 @@ jobs:
             This build is **ad-hoc signed and not notarized** — macOS
             Gatekeeper will ask you to right-click the app and choose **Open**
             the first time you launch it.
+
+  # ---------------------------------------------------------------------
+  # Homebrew: lifeart/homebrew-tap carries Casks/md-view.rb, which is what
+  # `brew install --cask lifeart/tap/md-view` installs and `brew upgrade`
+  # compares against. This points it at the release just published.
+  #
+  # Only signed and notarized releases go to the tap: an ad-hoc DMG installed
+  # through brew would meet Gatekeeper with no right-click hint in sight.
+  #
+  # Self-enabling like signing: it runs once the repository has the
+  # HOMEBREW_TAP_DEPLOY_KEY secret — the private half of an SSH deploy key
+  # with write access to lifeart/homebrew-tap, and to nothing else — and
+  # skips with a warning without it. A deploy key rather than a token: it
+  # reaches one repository and does not expire.
+  #
+  # Its own job, so a failure here (tap unreachable, key revoked) leaves the
+  # release itself intact and is fixed with "Re-run failed jobs".
+  # ---------------------------------------------------------------------
+  homebrew-tap:
+    name: Point the Homebrew cask at this release
+    needs: macos-dmg
+    if: needs.macos-dmg.outputs.signed == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Decide whether the tap can be updated
+        id: tap
+        env:
+          HAVE_KEY: ${{ secrets.HOMEBREW_TAP_DEPLOY_KEY != '' }}
+        run: |
+          if [ "$HAVE_KEY" = "true" ]; then
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::Homebrew cask not updated: missing secret HOMEBREW_TAP_DEPLOY_KEY"
+          fi
+
+      - uses: actions/checkout@v7
+        if: steps.tap.outputs.enabled == 'true'
+
+      # Hash the DMG GitHub serves, not the file the macOS job built: these
+      # are the bytes `brew` will download and check. A mismatch fails
+      # `brew install` for every reader, so it should fail here first.
+      - name: Hash the published DMG
+        if: steps.tap.outputs.enabled == 'true'
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          curl -fsSL --retry 5 --retry-all-errors -o "$RUNNER_TEMP/md-view.dmg" \
+            "https://github.com/$GITHUB_REPOSITORY/releases/download/$GITHUB_REF_NAME/md-view-$VERSION.dmg"
+          echo "VERSION=$VERSION" >> "$GITHUB_ENV"
+          echo "SHA256=$(sha256sum "$RUNNER_TEMP/md-view.dmg" | cut -d' ' -f1)" >> "$GITHUB_ENV"
+
+      - uses: actions/checkout@v7
+        if: steps.tap.outputs.enabled == 'true'
+        with:
+          repository: lifeart/homebrew-tap
+          ssh-key: ${{ secrets.HOMEBREW_TAP_DEPLOY_KEY }}
+          path: homebrew-tap
+
+      - name: Update and push the cask
+        if: steps.tap.outputs.enabled == 'true'
+        run: |
+          scripts/update-cask.sh homebrew-tap/Casks/md-view.rb "$VERSION" "$SHA256"
+          cd homebrew-tap
+          # A re-run for the same tag finds nothing to change.
+          if git diff --quiet; then
+            echo "::notice::Casks/md-view.rb already points at $VERSION"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -am "md-view $VERSION" -m "From $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/releases/tag/$GITHUB_REF_NAME"
+          git push

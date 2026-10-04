@@ -42,6 +42,14 @@ All three screenshots are the app itself rendering [`docs/screenshots/demo.md`](
 1. Open the DMG and drag **MDv** into **Applications**.
 2. Double-click to launch. A DMG built through `scripts/sign.sh` + `scripts/notarize.sh` (Developer ID + notarized) opens straight away on any Mac; an ad-hoc or development-signed one needs right-click → **Open** once.
 
+**Or with Homebrew**, which then keeps it up to date with the rest of your `brew upgrade`:
+
+```sh
+brew install --cask lifeart/tap/md-view
+```
+
+It installs the same notarized DMG from [lifeart/homebrew-tap](https://github.com/lifeart/homebrew-tap), and every release updates the cask automatically. Since MDv stays running after you close its window, `brew upgrade` quits it before replacing it and reopens it afterwards; `brew upgrade --no-quit` leaves it running on the old version until you quit it.
+
 The very first launch after installing may be slightly slower while macOS verifies the new binary. After that a cold launch shows the rendered window in ~0.4 s — most of it macOS starting AppKit and WebKit — and every subsequent open goes into the resident instance in ~60 ms. All of these are measured from the Finder gesture by `scripts/perf-coldstart.sh`; see [ARCHITECTURE.md](ARCHITECTURE.md) for the full breakdown.
 
 **MDv stays running after you close its window** (macOS convention — `Cmd+Q` quits). While it is resident, opening a markdown file skips process spawn and WebKit init entirely — ~60 ms instead of ~0.4 s.
@@ -188,7 +196,12 @@ also skips `internal/...`, whose table tests use POSIX absolute paths.
 
 **`release.yml`** — on a `v*` tag. Builds on macOS, packages
 `build/bin/md-view-<version>.dmg` (app + `/Applications` symlink, UDZO), and
-creates the GitHub release with the DMG attached.
+creates the GitHub release with the DMG attached. A second job then points the
+Homebrew cask in [lifeart/homebrew-tap](https://github.com/lifeart/homebrew-tap)
+at the release: it downloads the DMG back from GitHub, hashes those bytes, and
+pushes the new `version`/`sha256` with `scripts/update-cask.sh`. Only signed and
+notarized releases go to the tap, and the tap's own CI then installs the cask on
+a clean runner.
 
 **Signing turns itself on.** There is no switch to flip: a first step checks
 whether the repository has the Apple secrets and sets an output the signing
@@ -206,6 +219,7 @@ secrets that were missing — never a failed release.
 | `NOTARY_KEY_P8` | contents of the App Store Connect API key `.p8` |
 | `NOTARY_KEY_ID` | that key's Key ID |
 | `NOTARY_ISSUER` | the Issuer ID shown above the key list |
+| `HOMEBREW_TAP_DEPLOY_KEY` | private half of an SSH deploy key with write access to `lifeart/homebrew-tap`; without it the cask is not updated and the run says so |
 
 The signing and notarization steps call the same `scripts/sign.sh` and
 `scripts/notarize.sh` used locally, so CI and a hand-made release cannot
