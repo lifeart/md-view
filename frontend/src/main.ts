@@ -518,6 +518,21 @@ async function goToHistoryEntry(index: number): Promise<void> {
   }
 }
 
+// reloadCurrent re-renders the displayed document from disk (View > Reload)
+// and keeps the reader where they were. It takes a navigation token like any
+// other render, so an open or history step that starts meanwhile wins. A
+// window cleared on hide has nothing on screen to keep: its restore-on-show
+// re-reads the file anyway. A failed read (file deleted or renamed) leaves the
+// last good render on screen with the error banner over it.
+async function reloadCurrent(): Promise<void> {
+  if (!currentPath || contentCleared) return;
+  trace(`reload ${currentPath}`);
+  const token = ++navSeq;
+  const scrollY = window.scrollY;
+  const ok = await renderInto(currentPath, token);
+  if (ok) window.scrollTo(0, scrollY);
+}
+
 function goBack(): void {
   if (historyIndex > 0) void goToHistoryEntry(historyIndex - 1);
 }
@@ -862,6 +877,9 @@ async function init(): Promise<void> {
       // about to arrive (see RESTORE_GRACE_MS).
       scheduleRestore();
     }
+  });
+  EventsOn('doc:reload', () => {
+    void reloadCurrent();
   });
   EventsOn('app:error', (msg: string) => {
     showError(msg);
