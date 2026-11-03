@@ -24,6 +24,14 @@ APP="$(cd "$(dirname "$APP")" && pwd)/$(basename "$APP")"
 VERSION="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$APP/Contents/Info.plist")"
 DEPLOY_TARGET=12.0
 
+# The Swift target has to match the architecture of the Go archive it links,
+# which is whatever `go build` targets (the host, unless GOARCH says otherwise).
+case "$(cd "$ROOT" && go env GOARCH)" in
+  arm64) SWIFT_ARCH=arm64 ;;
+  amd64) SWIFT_ARCH=x86_64 ;;
+  *) echo "error: unsupported GOARCH $(go env GOARCH)"; exit 2 ;;
+esac
+
 WORK="$(mktemp -d)"
 trap 'rm -rf "$WORK"' EXIT
 
@@ -44,7 +52,7 @@ mkdir -p "$WORK/appex/Contents/MacOS"
 # linker flag.
 MACOSX_DEPLOYMENT_TARGET="$DEPLOY_TARGET" swiftc \
   -O -parse-as-library \
-  -target "arm64-apple-macosx$DEPLOY_TARGET" \
+  -target "$SWIFT_ARCH-apple-macosx$DEPLOY_TARGET" \
   -module-name MDvQuickLook \
   -import-objc-header "$WORK/libmdvpreview.h" \
   -o "$WORK/appex/Contents/MacOS/MDvQuickLook" \

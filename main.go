@@ -59,6 +59,7 @@ func main() {
 			Middleware: app.assetMiddleware,
 		},
 		BackgroundColour: &defaultBackground,
+		Menu:             appMenu(app),
 		OnStartup:        app.startup,
 		Bind: []interface{}{
 			app,

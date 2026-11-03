@@ -25,6 +25,10 @@ import (
 // the OS or the Go side asks the app to open a document.
 const EventDocOpen = "doc:open"
 
+// EventDocReload asks the frontend to re-read and re-render the document on
+// screen (View > Reload), keeping the reader's place.
+const EventDocReload = "doc:reload"
+
 // App is the Wails-bound application core.
 type App struct {
 	ctx      context.Context
@@ -222,6 +226,20 @@ func (a *App) inlineDocPath() string {
 		return a.pending[0]
 	}
 	return a.currentDoc
+}
+
+// reload asks the frontend to re-render the displayed document from disk. The
+// frontend owns what "displayed" means (history, a window cleared on hide), so
+// this only signals; with no frontend yet there is nothing on screen to reload.
+func (a *App) reload() {
+	a.mu.Lock()
+	ctx, ready := a.ctx, a.ready
+	a.mu.Unlock()
+	if ctx == nil || !ready {
+		return
+	}
+	tracef("reload")
+	runtime.EventsEmit(ctx, EventDocReload)
 }
 
 func (a *App) emitError(msg string) {
